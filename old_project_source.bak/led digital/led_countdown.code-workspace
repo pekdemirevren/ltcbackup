@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "../.."
+		},
+		{
+			"name": "Workoutappsettingsscreen",
+			"path": "../../Workoutappsettingsscreen"
+		}
+	],
+	"settings": {
+		"geminicodeassist.agentYoloMode": true
+	}
+}

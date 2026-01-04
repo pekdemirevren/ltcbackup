@@ -1,0 +1,11 @@
+{
+  "ios": {
+    "bundleIdentifier": "com.pekdemirevren.lct-yeni"
+  },
+  "extra": {
+    "eas": {
+      "projectId": "77486616-740d-4bdc-92b2-a013ad25f61f"
+    }
+  },
+  "owner": "pekdemirevren"
+}

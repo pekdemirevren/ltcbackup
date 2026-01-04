@@ -1,0 +1,15 @@
+{
+  "extends": "@react-native/typescript-config",
+  "compilerOptions": {
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "*.ts", "*.tsx", "__tests__/**/*.ts", "__tests__/**/*.tsx"],
+  "exclude": [
+    "node_modules",
+    "Pods",
+    "Sharing Screen Design",
+    "old_project_source.bak",
+    "src/assets/icons",
+    "vendor"
+  ]
+}

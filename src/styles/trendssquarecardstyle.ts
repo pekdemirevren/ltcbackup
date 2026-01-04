@@ -1,0 +1,90 @@
+import { StyleSheet } from 'react-native';
+import { SquareCardMeasurements } from './SquareCardBase';
+
+export const TrendsSquareCardStyle = StyleSheet.create({
+    trendSquareCard: {
+        width: SquareCardMeasurements.cardWidth,
+        height: SquareCardMeasurements.cardHeight,
+        backgroundColor: '#2A292A',
+        borderRadius: SquareCardMeasurements.borderRadius,
+        borderTopLeftRadius: SquareCardMeasurements.borderRadius,
+        borderTopRightRadius: SquareCardMeasurements.borderRadius,
+        borderBottomLeftRadius: SquareCardMeasurements.borderRadius,
+        borderBottomRightRadius: SquareCardMeasurements.borderRadius,
+        padding: 0,
+        justifyContent: 'flex-start',
+    },
+    trendSquareHeader: {
+        fontSize: SquareCardMeasurements.trends.headerFontSize,
+        fontWeight: '600',
+        color: '#FFF',
+        marginTop: SquareCardMeasurements.trends.headerMarginTop,
+        marginLeft: SquareCardMeasurements.trends.headerMarginLeft,
+    },
+    trendSquareIconWrapper: {
+        marginTop: SquareCardMeasurements.trends.iconMarginTop,
+        marginLeft: SquareCardMeasurements.trends.iconMarginLeft,
+        width: SquareCardMeasurements.trends.iconSize,
+        height: SquareCardMeasurements.trends.iconSize,
+        borderRadius: SquareCardMeasurements.trends.iconSize / 2,
+        backgroundColor: '#1C1C1E',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    trendSquareLabel: {
+        fontSize: SquareCardMeasurements.trends.labelFontSize,
+        color: '#FFF',
+        marginTop: SquareCardMeasurements.trends.labelMarginTop,
+        marginLeft: SquareCardMeasurements.trends.labelMarginLeft,
+    },
+    trendSquareValue: {
+        fontSize: SquareCardMeasurements.trends.valueFontSize,
+        fontWeight: SquareCardMeasurements.trends.valueFontWeight,
+        marginLeft: SquareCardMeasurements.trends.labelMarginLeft,
+        marginTop: 4,
+    },
+    trendsGridContainer: {
+        borderRadius: 24,
+        paddingTop: 12,
+        paddingHorizontal: 16,
+        paddingBottom: 2,
+        backgroundColor: '#1F1F20',
+    },
+    trendsGridTitle: {
+        fontSize: 17,
+        fontWeight: '600',
+        color: '#FFF',
+        marginBottom: 8,
+    },
+    trendGrid: {
+        marginTop: 8,
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+    },
+    trendItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 16,
+        width: '48%',
+    },
+    trendIconDown: {
+        width: 42,
+        height: 42,
+        borderRadius: 21,
+        backgroundColor: '#1F1F20',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    trendLabel: {
+        fontSize: 16,
+        color: '#FFF',
+        marginBottom: 0,
+    },
+    trendValue: {
+        fontSize: 16,
+        color: '#8E8E93',
+        fontWeight: '600',
+    },
+});

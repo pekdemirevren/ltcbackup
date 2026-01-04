@@ -1,0 +1,24 @@
+# dependencies
+node_modules/
+.expo/
+.expo-shared/
+
+# OS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# misc
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+web-build/
+dist/

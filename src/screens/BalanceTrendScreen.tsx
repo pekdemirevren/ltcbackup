@@ -1,0 +1,277 @@
+import React, { useState, useCallback } from 'react';
+import { StyleSheet, Text, View, ScrollView, StatusBar, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Feather from 'react-native-vector-icons/Feather';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
+import { BackButtonStyles } from '../styles/BackButtonStyle';
+
+const COLORS = { background: '#000000', textWhite: '#FFFFFF', textGray: '#8E8E93', separator: '#2C2C2E' };
+const METRIC_COLOR = '#D1A3FF';
+
+export default function BalanceTrendScreen({ navigation }: { navigation: any }) {
+  const [monthlyData, setMonthlyData] = useState<number[]>(new Array(12).fill(0));
+  const [weeklyData, setWeeklyData] = useState<number[]>(new Array(7).fill(0));
+  const [averageMetric, setAverageMetric] = useState(0);
+  const [yearlyAverage, setYearlyAverage] = useState(0);
+  const [totalDays, setTotalDays] = useState(0);
+  const [balancedDays, setBalancedDays] = useState(0);
+  const [last90Days, setLast90Days] = useState({ balanced: 0, total: 90 });
+  const [trendDirection, setTrendDirection] = useState<'up' | 'down'>('down');
+
+  useFocusEffect(useCallback(() => { loadData(); }, []));
+
+  const loadData = async () => {
+    try {
+      const stored = await AsyncStorage.getItem('workoutSummaries');
+      if (!stored) return;
+      const allSummaries = JSON.parse(stored);
+      const now = new Date();
+
+      // Monthly balance: variety of workout types per month (unique categories / total categories)
+      const monthly = new Array(12).fill(0);
+      const yearFiltered = allSummaries.filter((s: any) => new Date(s.date).getFullYear() === now.getFullYear());
+      
+      for (let m = 0; m < 12; m++) {
+        const monthSummaries = yearFiltered.filter((s: any) => new Date(s.date).getMonth() === m);
+        const uniqueCategories = new Set(monthSummaries.map((s: any) => s.categoryId));
+        // Balance score: More variety = higher score (max 5 different categories = 100%)
+        const balanceScore = Math.min((uniqueCategories.size / 5) * 100, 100);
+        monthly[m] = Math.round(balanceScore);
+      }
+      setMonthlyData(monthly);
+
+      // Weekly balance
+      const weekly = new Array(7).fill(0);
+      const isSameDay = (d1: Date, d2: Date) => d1.getDate() === d2.getDate() && d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear();
+      const categoriesThisWeek = new Set<string>();
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(); d.setDate(now.getDate() - (6 - i));
+        const daySummaries = allSummaries.filter((s: any) => isSameDay(new Date(s.date), d));
+        daySummaries.forEach((s: any) => categoriesThisWeek.add(s.categoryId));
+        const dayCategories = new Set(daySummaries.map((s: any) => s.categoryId));
+        weekly[i] = Math.round((dayCategories.size / 5) * 100);
+      }
+      setWeeklyData(weekly);
+
+      const weeklyBalanceScore = Math.min((categoriesThisWeek.size / 5) * 100, 100);
+      setAverageMetric(Math.round(weeklyBalanceScore));
+
+      const validMonthly = monthly.filter(v => v > 0);
+      setYearlyAverage(validMonthly.length > 0 ? Math.round(validMonthly.reduce((a, b) => a + b, 0) / validMonthly.length) : 0);
+
+      const currentMonth = now.getMonth();
+      const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+      setTrendDirection(monthly[currentMonth] >= monthly[prevMonth] ? 'up' : 'down');
+
+      const startOfYear = new Date(now.getFullYear(), 0, 1);
+      const dayOfYear = Math.floor((now.getTime() - startOfYear.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      setTotalDays(dayOfYear);
+
+      // Count days with balanced workouts (multiple categories in a day)
+      const balancedDaysSet: Set<string> = new Set();
+      const dayCategories: { [key: string]: Set<string> } = {};
+      allSummaries.forEach((s: any) => {
+        const d = new Date(s.date);
+        if (d.getFullYear() === now.getFullYear()) {
+          const dateStr = d.toDateString();
+          if (!dayCategories[dateStr]) dayCategories[dateStr] = new Set();
+          dayCategories[dateStr].add(s.categoryId);
+        }
+      });
+      Object.entries(dayCategories).forEach(([date, cats]) => {
+        if (cats.size >= 2) balancedDaysSet.add(date);
+      });
+      setBalancedDays(balancedDaysSet.size);
+
+      // Last 90 days
+      const ninetyDaysAgo = new Date(); ninetyDaysAgo.setDate(now.getDate() - 90);
+      const last90Categories: { [key: string]: Set<string> } = {};
+      allSummaries.forEach((s: any) => {
+        const d = new Date(s.date);
+        if (d >= ninetyDaysAgo && d <= now) {
+          const dateStr = d.toDateString();
+          if (!last90Categories[dateStr]) last90Categories[dateStr] = new Set();
+          last90Categories[dateStr].add(s.categoryId);
+        }
+      });
+      let last90Balanced = 0;
+      Object.values(last90Categories).forEach(cats => {
+        if (cats.size >= 2) last90Balanced++;
+      });
+      setLast90Days({ balanced: last90Balanced, total: 90 });
+    } catch (e) { console.error(e); }
+  };
+
+  const getDateRange = () => {
+    const now = new Date();
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+    const formatDate = (d: Date) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    return `${formatDate(startOfYear)} – ${formatDate(now)}`;
+  };
+
+  const monthLabels = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
+  const weekDayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+  const renderYearlyChart = () => {
+    const maxVal = 100;
+    const chartHeight = 140;
+    const currentMonth = new Date().getMonth();
+    return (
+      <View style={styles.yearlyChartContainer}>
+        <Text style={styles.chartRightLabel}>BALANCE SCORE</Text>
+        <View style={styles.chartWithLine}>
+          {/* Grid lines */}
+          <View style={[styles.gridLine, { bottom: chartHeight + 20 }]} />
+          <View style={[styles.gridLine, { bottom: chartHeight * 0.75 + 20 }]} />
+          <View style={[styles.gridLine, { bottom: chartHeight * 0.5 + 20 }]} />
+          <View style={[styles.gridLine, { bottom: chartHeight * 0.25 + 20 }]} />
+          <View style={[styles.gridLine, { bottom: 20 }]} />
+          <View style={[styles.averageLine, { bottom: chartHeight + 20 - ((yearlyAverage / maxVal) * chartHeight) }]}>
+            <Text style={styles.averageLineLabel}>{yearlyAverage}%</Text>
+          </View>
+          <View style={[styles.currentLine, { bottom: chartHeight + 20 - ((averageMetric / maxVal) * chartHeight) }]}>
+            <View style={styles.currentLabelBubble}><Text style={styles.currentLineLabel}>{averageMetric}%</Text></View>
+          </View>
+          <View style={styles.barsRow}>
+            {monthlyData.map((val, idx) => {
+              const barHeight = maxVal > 0 ? (val / maxVal) * chartHeight : 0;
+              const isCurrentOrRecent = idx >= currentMonth - 2 && idx <= currentMonth;
+              return (
+                <View key={idx} style={styles.barWrapper}>
+                  <View style={[styles.bar, { height: Math.max(barHeight, 2), backgroundColor: isCurrentOrRecent ? METRIC_COLOR : '#8E8E93' }]} />
+                  <Text style={styles.barLabel}>{monthLabels[idx]}</Text>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+        <Text style={styles.yearLabel}>{new Date().getFullYear()}</Text>
+      </View>
+    );
+  };
+
+  const renderWeeklyChart = () => {
+    const maxVal = 100;
+    const chartHeight = 80;
+    return (
+      <View style={styles.weeklyChartContainer}>
+        <View style={styles.weeklyChartHeader}>
+          <Text style={styles.weeklyTitle}>Daily Variety</Text>
+          <Text style={styles.weeklyValue}>{averageMetric}%</Text>
+        </View>
+        <View style={styles.weeklyChartWithLines}>
+          {/* Grid lines */}
+          <View style={[styles.weeklyGridLine, { top: 0 }]} />
+          <View style={[styles.weeklyGridLine, { top: chartHeight * 0.5 }]} />
+          <View style={[styles.weeklyGridLine, { top: chartHeight }]} />
+          <View style={[styles.weeklyLineLabel, { position: 'absolute', right: 0, top: 0 }]}><Text style={styles.weeklyLineLabelText}>100%</Text></View>
+          <View style={[styles.weeklyLineLabel, { position: 'absolute', right: 0, top: chartHeight * 0.5 }]}><Text style={styles.weeklyLineLabelText}>50%</Text></View>
+          <View style={[styles.weeklyLineLabel, { position: 'absolute', right: 0, bottom: 16 }]}><Text style={styles.weeklyLineLabelText}>0%</Text></View>
+          <View style={styles.weeklyBarsRow}>
+            {weeklyData.map((val, idx) => {
+              const barHeight = maxVal > 0 ? (val / maxVal) * chartHeight : 0;
+              const avgHeight = maxVal > 0 ? (averageMetric / maxVal) * chartHeight : 0;
+              return (
+                <View key={idx} style={styles.weeklyBarWrapper}>
+                  <View style={styles.weeklyBarPair}>
+                    <View style={[styles.weeklyBarThin, { height: Math.max(avgHeight, 2), backgroundColor: '#8E8E93' }]} />
+                    <View style={[styles.weeklyBarThin, { height: Math.max(barHeight, 2), backgroundColor: METRIC_COLOR }]} />
+                  </View>
+                  <Text style={styles.weeklyBarLabel}>{weekDayLabels[idx]}</Text>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  const yearlyPercent = totalDays > 0 ? Math.round((balancedDays / totalDays) * 100) : 0;
+  const last90Percent = last90Days.total > 0 ? Math.round((last90Days.balanced / last90Days.total) * 100) : 0;
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" />
+      <TouchableOpacity style={[BackButtonStyles.topBackButton, BackButtonStyles.backButton, { backgroundColor: '#2C2C2E' }]} onPress={() => navigation.goBack()}>
+        <Feather name="chevron-left" size={28} color={COLORS.textWhite} />
+      </TouchableOpacity>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <Text style={styles.mainTitle}>Balance</Text>
+        <View style={styles.summaryCard}>
+          <View style={styles.arrowCircle}><MaterialCommunityIcons name={trendDirection === 'up' ? 'chevron-up' : 'chevron-down'} size={32} color={METRIC_COLOR} /></View>
+          <View style={styles.summaryText}>
+            <Text style={[styles.summaryValue, { color: METRIC_COLOR }]}>{averageMetric}<Text style={styles.summaryUnit}>%</Text></Text>
+            <Text style={styles.summaryDescription}>{trendDirection === 'down' ? `Try to vary your workout types for better training balance.` : `Great job! You're maintaining diverse workout types.`}</Text>
+          </View>
+        </View>
+        <View style={styles.separator} />
+        <Text style={styles.dateRange}>{getDateRange()}</Text>
+        {renderYearlyChart()}
+        <View style={styles.separator} />
+        {renderWeeklyChart()}
+        <View style={styles.separator} />
+        <View style={styles.ringsSection}>
+          <Text style={styles.ringsTitle}>Balanced Training Days</Text>
+          <Text style={styles.ringsYearly}>{balancedDays}/{totalDays} days (%{yearlyPercent})</Text>
+          <Text style={[styles.rings90, { color: METRIC_COLOR }]}>{last90Days.balanced}/{last90Days.total} days (%{last90Percent})</Text>
+        </View>
+        <View style={styles.separator} />
+        <View style={styles.descriptionSection}>
+          <Text style={styles.descriptionText}>Balance measures the variety in your training. A higher score indicates you're training with diverse workout types, which helps prevent plateaus and overuse injuries.{' '}<Text style={styles.learnMore}>Learn more...</Text></Text>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: COLORS.background },
+  scrollContent: { paddingBottom: 40, paddingTop: 60, paddingHorizontal: 16 },
+  mainTitle: { color: COLORS.textWhite, fontSize: 34, fontWeight: 'bold', marginBottom: 20 },
+  summaryCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 16 },
+  arrowCircle: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#2C2C2E', justifyContent: 'center', alignItems: 'center' },
+  summaryText: { flex: 1 },
+  summaryValue: { fontSize: 20, fontWeight: 'bold', marginBottom: 4 },
+  summaryUnit: { fontSize: 14, fontWeight: '600' },
+  summaryDescription: { color: COLORS.textGray, fontSize: 14, lineHeight: 20 },
+  separator: { height: 0.5, backgroundColor: COLORS.separator, marginVertical: 16 },
+  dateRange: { color: COLORS.textWhite, fontSize: 17, fontWeight: '600', marginBottom: 12 },
+  yearlyChartContainer: { marginTop: 8 },
+  chartRightLabel: { color: COLORS.textGray, fontSize: 11, fontWeight: '600', textAlign: 'right', marginBottom: 8, letterSpacing: 0.5 },
+  chartWithLine: { height: 180, position: 'relative' },
+  gridLine: { position: 'absolute', left: 0, right: 0, height: 0.5, backgroundColor: 'rgba(255, 255, 255, 0.1)' },
+  averageLine: { position: 'absolute', left: 0, right: 0, borderTopWidth: 1, borderTopColor: 'rgba(142, 142, 147, 0.5)', borderStyle: 'dashed' },
+  averageLineLabel: { position: 'absolute', left: 0, top: -10, color: COLORS.textGray, fontSize: 11, backgroundColor: COLORS.background, paddingHorizontal: 4 },
+  currentLine: { position: 'absolute', left: 0, right: 0, borderTopWidth: 1, borderTopColor: METRIC_COLOR, borderStyle: 'dashed' },
+  currentLabelBubble: { position: 'absolute', right: 0, top: -12, backgroundColor: METRIC_COLOR, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
+  currentLineLabel: { color: '#000', fontSize: 11, fontWeight: '600' },
+  barsRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 140, marginTop: 20 },
+  barWrapper: { alignItems: 'center', flex: 1 },
+  bar: { width: 6, borderRadius: 3, marginBottom: 4 },
+  barLabel: { color: COLORS.textGray, fontSize: 10, marginTop: 4 },
+  yearLabel: { color: COLORS.textGray, fontSize: 11, marginTop: 4 },
+  weeklyChartContainer: { marginTop: 8 },
+  weeklyChartHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  weeklyTitle: { color: COLORS.textWhite, fontSize: 17, fontWeight: '600' },
+  weeklyValue: { color: COLORS.textGray, fontSize: 14 },
+  weeklyChartWithLines: { height: 100, position: 'relative' },
+  weeklyGridLine: { position: 'absolute', left: 0, right: 40, height: 0.5, backgroundColor: 'rgba(255, 255, 255, 0.1)' },
+  weeklyLineLabel: { backgroundColor: COLORS.background },
+  weeklyLineLabelText: { color: COLORS.textGray, fontSize: 10 },
+  weeklyBarsRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 80, paddingRight: 40 },
+  weeklyBarWrapper: { alignItems: 'center', flex: 1 },
+  weeklyBar: { width: 16, borderRadius: 4, marginBottom: 4 },
+  weeklyBarPair: { flexDirection: 'row', alignItems: 'flex-end', gap: 2 },
+  weeklyBarThin: { width: 6, borderRadius: 3 },
+  weeklyBarLabel: { color: COLORS.textGray, fontSize: 12, marginTop: 4 },
+  ringsSection: { marginTop: 8 },
+  ringsTitle: { color: COLORS.textWhite, fontSize: 17, fontWeight: '600', marginBottom: 4 },
+  ringsYearly: { color: COLORS.textGray, fontSize: 20, fontWeight: '600', marginBottom: 2 },
+  rings90: { fontSize: 20, fontWeight: '600' },
+  descriptionSection: { marginTop: 8 },
+  descriptionText: { color: COLORS.textGray, fontSize: 15, lineHeight: 22 },
+  learnMore: { color: '#007AFF' },
+});
