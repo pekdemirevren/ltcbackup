@@ -26,7 +26,8 @@ interface WorkoutScreenProps {
 const QUICK_START_STORAGE_KEY = '@workout_quick_start_cards';
 
 export function WorkoutScreen({ navigation }: WorkoutScreenProps) {
-  const { colors } = useContext(ThemeContext);
+  const themeContext = useContext(ThemeContext);
+  const colors = themeContext?.colors || Theme.dark;
   const timerContext = useContext(TimerContext);
 
   if (!timerContext) {

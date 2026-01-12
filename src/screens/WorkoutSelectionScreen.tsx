@@ -5,10 +5,10 @@ import Feather from 'react-native-vector-icons/Feather';
 import TimeIcon from '../assets/icons/TimeIcon';
 import { StackScreenProps } from '@react-navigation/stack';
 
-import { ThemeContext } from '../styles/ThemeContext';
+import { ThemeContext } from '../contexts/ThemeContext';
 import { TimerContext } from '../contexts/TimerContext';
 import { getStyles } from '../styles/WorkoutSelectionScreen.styles';
-import { RootStackParamList } from '../App';
+import { RootStackParamList } from '../navigation/RootNavigator';
 
 type WorkoutSelectionScreenProps = StackScreenProps<RootStackParamList, 'WorkoutSelectionScreen'>; // Assuming this screen will be added to RootStackParamList
 

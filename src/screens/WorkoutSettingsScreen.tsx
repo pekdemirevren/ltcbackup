@@ -14,8 +14,12 @@ import { loadWorkoutSettings, WorkoutSettings, DEFAULT_WORKOUT_SETTINGS } from '
 type WorkoutSettingsScreenProps = StackScreenProps<RootStackParamList, 'WorkoutSettings'>;
 
 export function WorkoutSettingsScreen({ route, navigation }: WorkoutSettingsScreenProps) {
-  const { workoutId, workoutName } = route.params;
-  const { colors } = useContext(ThemeContext);
+  const { workoutId, workoutName } = route.params || { workoutId: '', workoutName: '' };
+  const themeContext = useContext(ThemeContext);
+  if (!themeContext) {
+    throw new Error('WorkoutSettingsScreen must be used within a ThemeProvider');
+  }
+  const { colors } = themeContext;
   const [settings, setSettings] = useState<WorkoutSettings>({ workoutId, ...DEFAULT_WORKOUT_SETTINGS });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -58,7 +62,7 @@ export function WorkoutSettingsScreen({ route, navigation }: WorkoutSettingsScre
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle="light-content" />
-      
+
       <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.backButton, { backgroundColor: colors.backButtonBackground }]}>
         <Feather name="arrow-left" size={24} color={colors.text} />
       </TouchableOpacity>

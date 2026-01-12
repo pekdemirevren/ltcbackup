@@ -61,5 +61,9 @@
 	<string>Bu uygulama antrenman kartınızı fotoğraf kütüphanesine kaydetmek için erişim gerektirir.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Bu uygulama arka plan fotoğrafı çekmek için kameraya erişim gerektirir.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Bu uygulama antrenman etkinliklerinizi takviminize eklemek için takvim erişimi gerektirir.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Bu uygulama antrenman etkinliklerinizi takviminize eklemek ve mevcut etkinliklerinizi görüntülemek için takvim erişimi gerektirir.</string>
 </dict>
 </plist>

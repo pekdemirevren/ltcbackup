@@ -36,7 +36,7 @@ import {
   loadHiddenWorkoutDays,
 } from '../utils/WorkoutDayManager';
 
-type WorkoutCalendarScreenProps = StackScreenProps<RootStackParamList, 'WorkoutCalendar'>;
+type WorkoutCalendarScreenProps = StackScreenProps<RootStackParamList, 'PlanlamaEkrani'>;
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const MONTHS_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -81,20 +81,20 @@ const getDaysInMonth = (year: number, month: number): (Date | null)[] => {
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
   const daysInMonth = lastDay.getDate();
-  
+
   let startDayOfWeek = firstDay.getDay() - 1;
   if (startDayOfWeek < 0) startDayOfWeek = 6;
-  
+
   const days: (Date | null)[] = [];
-  
+
   for (let i = 0; i < startDayOfWeek; i++) {
     days.push(null);
   }
-  
+
   for (let i = 1; i <= daysInMonth; i++) {
     days.push(new Date(year, month, i));
   }
-  
+
   return days;
 };
 
@@ -103,13 +103,13 @@ const getWeekDays = (centerDate: Date): Date[] => {
   const dayOfWeek = centerDate.getDay();
   const monday = new Date(centerDate);
   monday.setDate(centerDate.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
-  
+
   for (let i = 0; i < 7; i++) {
     const day = new Date(monday);
     day.setDate(monday.getDate() + i);
     days.push(day);
   }
-  
+
   return days;
 };
 
@@ -149,7 +149,7 @@ export default function WorkoutCalendarScreen({ navigation }: WorkoutCalendarScr
       const hidden = await loadHiddenWorkoutDays();
       setHiddenDays(hidden);
       const loaded = await loadDailySchedule();
-      
+
       const visibleDays = ALL_WORKOUT_DAYS.filter(day => !hidden.includes(day));
       if (visibleDays.length === 0) {
         setSchedule(loaded);
@@ -163,7 +163,7 @@ export default function WorkoutCalendarScreen({ navigation }: WorkoutCalendarScr
         const date = new Date(now);
         date.setDate(now.getDate() + i);
         const dateKey = formatDateKey(date);
-        
+
         if (!generatedSchedule[dateKey]) {
           const dateNum = parseInt(dateKey.replace(/-/g, ''));
           const randomIndex = dateNum % visibleDays.length;
@@ -188,8 +188,8 @@ export default function WorkoutCalendarScreen({ navigation }: WorkoutCalendarScr
   const isToday = (date: Date): boolean => {
     const now = new Date();
     return date.getDate() === now.getDate() &&
-           date.getMonth() === now.getMonth() &&
-           date.getFullYear() === now.getFullYear();
+      date.getMonth() === now.getMonth() &&
+      date.getFullYear() === now.getFullYear();
   };
 
   const getWorkoutForDate = (date: Date): WorkoutDayType | null => {
@@ -483,7 +483,7 @@ export default function WorkoutCalendarScreen({ navigation }: WorkoutCalendarScr
 
       {/* Day View */}
       {selectedDate && (
-        <Animated.View 
+        <Animated.View
           entering={FadeInRight.duration(200)}
           style={[
             styles.dayViewContainer,
@@ -552,7 +552,7 @@ export default function WorkoutCalendarScreen({ navigation }: WorkoutCalendarScr
                 <TouchableOpacity style={{ padding: 8 }}>
                   <Feather name="search" size={22} color="#FFF" />
                 </TouchableOpacity>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#34C759', alignItems: 'center', justifyContent: 'center' }}
                   onPress={() => setShowYearPicker(false)}
                 >
@@ -570,7 +570,7 @@ export default function WorkoutCalendarScreen({ navigation }: WorkoutCalendarScr
                   {/* 12 months grid for this year */}
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', paddingHorizontal: 8 }}>
                     {[...Array(12)].map((_, monthIndex) => (
-                      <TouchableOpacity 
+                      <TouchableOpacity
                         key={monthIndex}
                         style={{ width: '30%', marginBottom: 24, alignItems: 'center' }}
                         onPress={() => {
@@ -623,7 +623,7 @@ export default function WorkoutCalendarScreen({ navigation }: WorkoutCalendarScr
             />
             {/* Bottom bar */}
             <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 16, paddingVertical: 16, paddingBottom: 40, backgroundColor: '#000' }}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={{ backgroundColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, alignSelf: 'flex-start' }}
                 onPress={() => setShowYearPicker(false)}
               >

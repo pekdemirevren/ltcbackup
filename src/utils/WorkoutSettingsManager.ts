@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface WorkoutBlock {
     id: string;
-    type: 'time' | 'loop' | 'speed' | 'lap';
+    type: 'time' | 'loop' | 'speed' | 'lap' | 'weight';
     settings: any;
     title?: string;
 }

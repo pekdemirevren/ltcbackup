@@ -38,7 +38,7 @@ export function LoopScreen({ route, navigation }: LoopScreenProps) {
           if (workoutId) {
             const { loadWorkoutSettings } = await import('../utils/WorkoutSettingsManager');
             const loadedSettings = await loadWorkoutSettings(workoutId);
-            
+
             setInfiniteTime(loadedSettings.infiniteLoopTime || '15');
             // Settings store speed in ms, convert to seconds for UI/State
             const speedSec = loadedSettings.infiniteSpeed ? loadedSettings.infiniteSpeed / 1000 : 1.0;
@@ -47,7 +47,7 @@ export function LoopScreen({ route, navigation }: LoopScreenProps) {
             // Global settings (Quick Start)
             const savedTime = await AsyncStorage.getItem('infiniteLoopTime');
             const savedSpeed = await AsyncStorage.getItem('infiniteLoopSpeed');
-            
+
             if (savedTime) setInfiniteTime(savedTime);
             if (savedSpeed) setInfiniteSpeed(parseFloat(savedSpeed)); // Saved as seconds string usually? Let's check LoopSpeedScreen
           }
@@ -66,7 +66,7 @@ export function LoopScreen({ route, navigation }: LoopScreenProps) {
       try {
         const { loadWorkoutSettings, saveWorkoutSettings } = await import('../utils/WorkoutSettingsManager');
         const currentSettings = await loadWorkoutSettings(workoutId);
-        
+
         await saveWorkoutSettings({
           ...currentSettings,
           infiniteLoopTime: infiniteTime,
@@ -92,7 +92,7 @@ export function LoopScreen({ route, navigation }: LoopScreenProps) {
       if (workoutId) {
         const { loadWorkoutSettings, saveWorkoutSettings } = await import('../utils/WorkoutSettingsManager');
         const currentSettings = await loadWorkoutSettings(workoutId);
-        
+
         // Ensure current settings are saved/updated
         await saveWorkoutSettings({
           ...currentSettings,
@@ -107,7 +107,7 @@ export function LoopScreen({ route, navigation }: LoopScreenProps) {
         // Fallback logic for no workoutId (Global settings)
         await AsyncStorage.setItem('infiniteLoopTime', infiniteTime);
         await AsyncStorage.setItem('infiniteLoopSpeed', String(infiniteSpeed));
-        
+
         timeToUse = infiniteTime;
         speedToUse = infiniteSpeed;
       }
@@ -132,7 +132,7 @@ export function LoopScreen({ route, navigation }: LoopScreenProps) {
       {/* Top Back Button */}
       <View style={styles.topBackButton}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.backButton, { backgroundColor: colors.backButtonBackground }]}>
-          <Theme.Icons.back.lib name={Theme.Icons.back.name} size={32} color={colors.text} />
+          <Theme.Icons.back.lib width={32} height={32} color={colors.text} />
         </TouchableOpacity>
       </View>
 
@@ -155,14 +155,14 @@ export function LoopScreen({ route, navigation }: LoopScreenProps) {
             reducedTransparencyFallbackColor="black"
           />
           <View style={styles.iconContainer}>
-            <Theme.Icons.infinity.lib name={Theme.Icons.infinity.name} size={32} color={colors.quickStart.primary} />
+            <Theme.Icons.infinity.lib width={32} height={32} color={colors.quickStart.primary} />
           </View>
           <View style={styles.cardTextContainer}>
             <Text style={styles.cardTitle}>Loop Time</Text>
             <Text style={[styles.cardSubtitle, { color: colors.quickStart.primary }]}>{`${infiniteTime}sec`}</Text>
           </View>
           <TouchableOpacity style={[styles.playIconContainer, { backgroundColor: colors.quickStart.primary }]} onPress={handleInfiniteStart}>
-            <Theme.Icons.play.lib name={Theme.Icons.play.name} size={33} color={colors.playIconText} />
+            <Theme.Icons.play.lib width={33} height={33} color={colors.playIconText} />
           </TouchableOpacity>
         </TouchableOpacity>
 
@@ -186,7 +186,7 @@ export function LoopScreen({ route, navigation }: LoopScreenProps) {
             <Text style={[styles.cardSubtitle, { color: colors.speed.primary }]}>{`${Number(infiniteSpeed).toFixed(1)}sec`}</Text>
           </View>
           <TouchableOpacity style={[styles.playIconContainer, { backgroundColor: colors.speed.primary }]} onPress={handleInfiniteStart}>
-            <Theme.Icons.play.lib name={Theme.Icons.play.name} size={33} color={colors.playIconText} />
+            <Theme.Icons.play.lib width={33} height={33} color={colors.playIconText} />
           </TouchableOpacity>
         </TouchableOpacity>
       </ScrollView>

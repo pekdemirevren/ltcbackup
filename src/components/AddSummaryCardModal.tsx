@@ -27,6 +27,8 @@ import { TrendsSquareCardStyle } from '../styles/trendssquarecardstyle';
 import { WorkoutSquareCardStyle } from '../styles/workoutsquarecardstyle';
 import { AddCardButtonStyle } from '../styles/AddCardButtonStyle';
 import { SquareCardMeasurements } from '../styles/SquareCardBase';
+import DailyWorkoutWidget from './Summary/DailyWorkoutWidget';
+import { getTodaysWorkoutDay, getCurrentDayNumber, WorkoutDayType } from '../utils/WorkoutDayManager';
 
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -128,6 +130,8 @@ export default function AddSummaryCardModal({ visible, onClose, onCardAdded }: A
         });
     };
 
+    const [todaysWorkoutDay, setTodaysWorkoutDay] = useState<WorkoutDayType | null>(null);
+
     useEffect(() => {
         if (visible) {
             Animated.spring(panY, {
@@ -136,10 +140,16 @@ export default function AddSummaryCardModal({ visible, onClose, onCardAdded }: A
                 friction: 8,
             }).start();
             loadData();
+            loadTodaysWorkoutDay();
         } else {
             panY.setValue(SCREEN_HEIGHT);
         }
     }, [visible]);
+
+    const loadTodaysWorkoutDay = async () => {
+        const today = await getTodaysWorkoutDay();
+        setTodaysWorkoutDay(today);
+    };
 
     const loadData = async () => {
         try {
@@ -415,13 +425,13 @@ export default function AddSummaryCardModal({ visible, onClose, onCardAdded }: A
 
         const isWorkout = !!selectedWorkoutId;
         const currentCard = carouselCards[selectedCardIndex % carouselCards.length];
-        
+
         // currentCard undefined kontrolü
         if (!currentCard) {
             console.error('currentCard is undefined', { selectedCardIndex, carouselCardsLength: carouselCards.length });
             return null;
         }
-        
+
         // Workout metric kartları için ID zaten composite formatta (workoutId_metricId)
         const isCurrentCardAlreadyComposite = currentCard.id.includes('_') && allWorkouts.some(w => currentCard.id.startsWith(w.workoutId + '_'));
         const compositeId = (isWorkout && !isCurrentCardAlreadyComposite) ? `${selectedWorkoutId}_${currentCard.id}` : currentCard.id;
@@ -641,7 +651,7 @@ export default function AddSummaryCardModal({ visible, onClose, onCardAdded }: A
                                             const SvgIcon = card.SvgIcon;
                                             const isActive = index === selectedCardIndex;
                                             return (
-                                                <View style={[WorkoutSquareCardStyle.workoutSquareCard, { 
+                                                <View style={[WorkoutSquareCardStyle.workoutSquareCard, {
                                                     marginTop: SquareCardMeasurements.modal.carouselCardTop,
                                                     opacity: isActive ? 1 : 0.7,
                                                     transform: isActive ? [] : [{ scale: 0.95 }]
@@ -661,7 +671,15 @@ export default function AddSummaryCardModal({ visible, onClose, onCardAdded }: A
                                                     </View>
                                                 </View>
                                             );
-                                        })() : (
+                                        })() : card.id === 'DailyWorkout' ? (
+                                            <View style={{ marginTop: SquareCardMeasurements.modal.carouselCardTop }}>
+                                                <DailyWorkoutWidget
+                                                    workoutDay={todaysWorkoutDay || 'LEG DAY'}
+                                                    currentDay={getCurrentDayNumber()}
+                                                    totalDays={7}
+                                                />
+                                            </View>
+                                        ) : (
                                             <View style={[styles.halfCard, { height: 176, paddingTop: 12, paddingBottom: 8, position: 'relative', marginTop: SquareCardMeasurements.modal.carouselCardTop, left: 0 }]}>
                                                 <View style={[styles.cardHeaderRow, { paddingRight: 8 }]}>
                                                     <Text style={[styles.cardTitle, { fontSize: 17, textTransform: 'none', marginBottom: 0, flex: 1 }]}>{card.title}</Text>
@@ -697,9 +715,6 @@ export default function AddSummaryCardModal({ visible, onClose, onCardAdded }: A
                                                     </View>
                                                 </View>
                                             </View>
-                                        )}
-                                        {isAlreadyAdded && index === (selectedCardIndex % carouselCards.length) && (
-                                            <Text style={{ color: '#8E8E93', fontSize: 13, textAlign: 'center', marginTop: 25 }}>Previously Added</Text>
                                         )}
                                     </View>
                                 );
@@ -762,299 +777,299 @@ export default function AddSummaryCardModal({ visible, onClose, onCardAdded }: A
                 >
                     <View>
                         <Text style={[styles.title, { marginTop: 0, marginBottom: 8 }]}>Add a Card to{"\n"}Your Summary</Text>
-                            {/* Top Stack: Set Count & Strength Level (2 cards) */}
-                            <View style={[styles.cardsStack, { marginTop: 0 }]}> 
-                                {/* Strength Level Card - Back */}
-                                <TouchableOpacity
-                                    style={styles.cardBack}
-                                    onPress={() => { setIsSessionsMode(false); setIsTrendsMode(false); setIsWorkoutsMode(false); setSelectedWorkoutId(null); setSelectedCardIndex(1); setShowDetailView(true); }}
-                                    activeOpacity={1}
-                                >
-                                    <View style={[styles.cardHeaderRow, { paddingRight: 8 }]}> 
-                                        <Text style={[styles.cardTitle, { fontSize: 17, textTransform: 'none', marginBottom: 0, flex: 1 }]}>Strength Level</Text>
-                                    </View>
-                                    <View style={{ marginTop: 9 }}>
-                                        <Text style={[styles.subLabel, { color: '#FFF', fontSize: 13, marginTop: 4, textTransform: 'none' }]}>Today</Text>
-                                        <View style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: -4 }}>
-                                            <Text style={[styles.metricValue, { color: MetricColors.weight, fontSize: 30, fontWeight: '700' }]}> 
-                                                {strengthLevel}{' '}
-                                                <Text style={[styles.unit, { fontSize: 20, fontWeight: '700' }]}>KG</Text>
-                                            </Text>
-                                        </View>
-                                        <View style={[styles.barChartContainer, { marginTop: -2 }]}> 
-                                            {dailyStrData.map((val, i) => {
-                                                const max = Math.max(...dailyStrData.map(v => v), 1);
-                                                return (
-                                                    <View key={i} style={{ width: 3, height: 70, justifyContent: 'flex-end' }}>
-                                                        <View style={[styles.bar, { height: 70, backgroundColor: '#4A4A4C', position: 'absolute', bottom: 0 }]} />
-                                                        {val > 0 && <View style={[styles.bar, { height: Math.max((val / max) * (70 * 0.8), 4), backgroundColor: MetricColors.weight }]} />}
-                                                    </View>
-                                                );
-                                            })}
-                                            <View style={[styles.chartLabelsOverlay, { justifyContent: 'space-between', paddingHorizontal: 0 }]}> 
-                                                <Text style={styles.chartLabelText}>00</Text>
-                                                <Text style={styles.chartLabelText}>06</Text>
-                                                <Text style={styles.chartLabelText}>12</Text>
-                                                <Text style={styles.chartLabelText}>18</Text>
-                                            </View>
-                                        </View>
-                                    </View>
-                                </TouchableOpacity>
-                                {/* Set Count Card - Front */}
-                                <TouchableOpacity
-                                    style={styles.cardFront}
-                                    onPress={() => { setIsSessionsMode(false); setIsTrendsMode(false); setIsWorkoutsMode(false); setSelectedWorkoutId(null); setSelectedCardIndex(0); setShowDetailView(true); }}
-                                    activeOpacity={1}
-                                >
-                                    <View style={[styles.cardHeaderRow, { paddingRight: 8 }]}> 
-                                        <Text style={[styles.cardTitle, { fontSize: 17, textTransform: 'none', marginBottom: 0, flex: 1 }]}>Set Count</Text>
-                                    </View>
-                                    <View style={{ marginTop: 9 }}>
-                                        <Text style={[styles.subLabel, { color: '#FFF', fontSize: 13, marginTop: 4, textTransform: 'none' }]}>Today</Text>
-                                        <View style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: -4 }}>
-                                            <Text style={[styles.metricValue, { color: MetricColors.sets, fontSize: 30, fontWeight: '700' }]}> 
-                                                {setCount}{' '}
-                                                <Text style={[styles.unit, { fontSize: 20, fontWeight: '700' }]}>SET</Text>
-                                            </Text>
-                                        </View>
-                                        <View style={[styles.barChartContainer, { marginTop: -2 }]}> 
-                                            {dailySetData.map((val, i) => {
-                                                const max = Math.max(...dailySetData, 1);
-                                                return (
-                                                    <View key={i} style={{ width: 3, height: 70, justifyContent: 'flex-end' }}>
-                                                        <View style={[styles.bar, { height: 70, backgroundColor: '#4A4A4C', position: 'absolute', bottom: 0 }]} />
-                                                        {val > 0 && <View style={[styles.bar, { height: Math.max((val / max) * (70 * 0.8), 4), backgroundColor: '#FF4D7D' }]} />}
-                                                    </View>
-                                                );
-                                            })}
-                                            <View style={[styles.chartLabelsOverlay, { justifyContent: 'space-between', paddingHorizontal: 0 }]}> 
-                                                <Text style={styles.chartLabelText}>00</Text>
-                                                <Text style={styles.chartLabelText}>06</Text>
-                                                <Text style={styles.chartLabelText}>12</Text>
-                                                <Text style={styles.chartLabelText}>18</Text>
-                                            </View>
-                                        </View>
-                                    </View>
-                                </TouchableOpacity>
-                            </View>
-                            <Text style={[styles.description, { fontSize: 13, marginTop: 10, marginBottom: 0 }]}>A quick glance at your total set count and strength volume for the day.</Text>
-                            <View style={[styles.sectionSeparator, { marginTop: 30, marginBottom: 30 }]} />
-                            
-                            {/* Sessions Section */}
+                        {/* Top Stack: Set Count & Strength Level (2 cards) */}
+                        <View style={[styles.cardsStack, { marginTop: 0 }]}>
+                            {/* Strength Level Card - Back */}
                             <TouchableOpacity
-                                style={[styles.sessionsSection, { width: '100%', borderRadius: 16, paddingTop: 12, paddingBottom: 2, paddingHorizontal: 16, marginBottom: 0 }]}
+                                style={styles.cardBack}
+                                onPress={() => { setIsSessionsMode(false); setIsTrendsMode(false); setIsWorkoutsMode(false); setSelectedWorkoutId(null); setSelectedCardIndex(1); setShowDetailView(true); }}
                                 activeOpacity={1}
-                                onPress={() => {
-                                    setIsSessionsMode(true);
-                                    setIsWorkoutsMode(false);
-                                    setIsTrendsMode(false);
-                                    setSelectedWorkoutId(null);
-                                    setSelectedCardIndex(0);
-                                    setShowDetailView(true);
-                                }}
                             >
-                                <View style={styles.cardHeaderRow}>
-                                    <Text style={styles.cardTitle}>Sessions</Text>
+                                <View style={[styles.cardHeaderRow, { paddingRight: 8 }]}>
+                                    <Text style={[styles.cardTitle, { fontSize: 17, textTransform: 'none', marginBottom: 0, flex: 1 }]}>Strength Level</Text>
                                 </View>
-                                {recentSessions.length > 0 ? (
-                                    recentSessions.slice(0, 3).map((session: any, idx: number) => {
-                                        const sessionDate = new Date(session.date);
-                                        const workout = allWorkouts.find(w => w.workoutId === session.workoutId);
-                                        const SvgIcon = workout?.SvgIcon;
-                                        const weightVal = session.settings?.weight ? parseFloat(session.settings.weight) : 0;
-                                        const cals = calculateCalories(session.workoutId, session.elapsedTime, weightVal, session.completedReps);
-                                        
-                                        const isToday = sessionDate.toDateString() === new Date().toDateString();
-                                        const dateLabel = isToday ? 'Today' : sessionDate.toLocaleDateString('en-US', { weekday: 'long' });
-                                        const oneWeekAgo = new Date();
-                                        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-                                        const finalDateLabel = sessionDate < oneWeekAgo ? sessionDate.toLocaleDateString('de-DE') : dateLabel;
-                                        
-                                        return (
-                                            <View key={idx} style={[styles.sessionItem, { borderBottomWidth: idx < recentSessions.length - 1 ? 1 : 0, paddingVertical: 12 }]}>
-                                                <LinearGradient colors={['#122003', '#213705']} style={styles.sessionIconContainer} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-                                                    {SvgIcon && <SvgIcon width={39} height={39} fill="#9DEC2C" />}
-                                                </LinearGradient>
-                                                <View style={styles.sessionInfo}>
-                                                    <Text style={styles.sessionWorkoutName}>{session.workoutName}</Text>
-                                                    <Text style={styles.sessionMetric}>{cals}<Text style={styles.sessionUnit}>KCAL</Text></Text>
+                                <View style={{ marginTop: 9 }}>
+                                    <Text style={[styles.subLabel, { color: '#FFF', fontSize: 13, marginTop: 4, textTransform: 'none' }]}>Today</Text>
+                                    <View style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: -4 }}>
+                                        <Text style={[styles.metricValue, { color: MetricColors.weight, fontSize: 30, fontWeight: '700' }]}>
+                                            {strengthLevel}{' '}
+                                            <Text style={[styles.unit, { fontSize: 20, fontWeight: '700' }]}>KG</Text>
+                                        </Text>
+                                    </View>
+                                    <View style={[styles.barChartContainer, { marginTop: -2 }]}>
+                                        {dailyStrData.map((val, i) => {
+                                            const max = Math.max(...dailyStrData.map(v => v), 1);
+                                            return (
+                                                <View key={i} style={{ width: 3, height: 70, justifyContent: 'flex-end' }}>
+                                                    <View style={[styles.bar, { height: 70, backgroundColor: '#4A4A4C', position: 'absolute', bottom: 0 }]} />
+                                                    {val > 0 && <View style={[styles.bar, { height: Math.max((val / max) * (70 * 0.8), 4), backgroundColor: MetricColors.weight }]} />}
                                                 </View>
-                                                <Text style={styles.sessionDateLabel}>{finalDateLabel}</Text>
-                                            </View>
-                                        );
-                                    })
-                                ) : (
-                                    <Text style={styles.emptyText}>No recent sessions</Text>
-                                )}
+                                            );
+                                        })}
+                                        <View style={[styles.chartLabelsOverlay, { justifyContent: 'space-between', paddingHorizontal: 0 }]}>
+                                            <Text style={styles.chartLabelText}>00</Text>
+                                            <Text style={styles.chartLabelText}>06</Text>
+                                            <Text style={styles.chartLabelText}>12</Text>
+                                            <Text style={styles.chartLabelText}>18</Text>
+                                        </View>
+                                    </View>
+                                </View>
                             </TouchableOpacity>
-                            <Text style={[styles.description, { fontSize: 13, marginTop: 10, marginBottom: 0 }]}>View your most recent workout sessions.</Text>
-
-                            <View style={[styles.sectionSeparator, { marginTop: 30, marginBottom: 30 }]} />
-                            
-                            {/* Trends Section */}
+                            {/* Set Count Card - Front */}
                             <TouchableOpacity
-                                style={[styles.card, { width: '100%', backgroundColor: '#2A292A', borderRadius: 24, paddingTop: 16, paddingBottom: 6, paddingHorizontal: 20, marginBottom: 0 }]}
+                                style={styles.cardFront}
+                                onPress={() => { setIsSessionsMode(false); setIsTrendsMode(false); setIsWorkoutsMode(false); setSelectedWorkoutId(null); setSelectedCardIndex(0); setShowDetailView(true); }}
                                 activeOpacity={1}
-                                onPress={() => {
-                                    setIsSessionsMode(false);
-                                    setIsWorkoutsMode(false);
-                                    setIsTrendsMode(true);
-                                    setSelectedWorkoutId(null);
-                                    setSelectedCardIndex(0);
-                                    setShowDetailView(true);
-                        }}
-                    >
-                        <Text style={{ fontSize: 17, fontWeight: '600', color: '#FFF', marginBottom: 8 }}>Trends</Text>
-                        <View style={[styles.trendGrid, { marginTop: 0 }]}>
-                            {[{ label: 'Energy', val: trendStats.energy, unit: 'KCAL/DAY', color: MetricColors.energy },
-                            { label: 'Strength', val: trendStats.strength, unit: 'KG/DAY', color: MetricColors.weight },
-                            { label: 'Sets', val: trendStats.sets, unit: 'SETS/DAY', color: MetricColors.sets },
-                            { label: 'Consistency', val: trendStats.consistency, unit: '%', color: '#00C7BE' }].map((t, idx) => (
-                                <View key={idx} style={[styles.trendItem, { marginBottom: 10 }]}>
-                                    <View style={styles.trendIconDown}><Feather name="chevron-down" size={38} color={t.color} /></View>
-                                    <View><Text style={styles.trendLabel}>{t.label}</Text><Text style={[styles.trendValue, { color: t.color }]}>{t.val} {t.unit}</Text></View>
+                            >
+                                <View style={[styles.cardHeaderRow, { paddingRight: 8 }]}>
+                                    <Text style={[styles.cardTitle, { fontSize: 17, textTransform: 'none', marginBottom: 0, flex: 1 }]}>Set Count</Text>
                                 </View>
-                            ))}
-                        </View>
-                    </TouchableOpacity>
-                    <Text style={[styles.description, { fontSize: 13, marginTop: 10, marginBottom: 0 }]}>Monitor your weekly averages for energy, strength, and consistency.</Text>
-
-                    <View style={[styles.sectionSeparator, { marginTop: 30, marginBottom: 30 }]} />
-
-                    <TouchableOpacity
-                        style={[styles.sectionCard, { paddingHorizontal: 0, paddingBottom: 8, paddingTop: 8, backgroundColor: '#2A292A' }]}
-                        activeOpacity={1}
-                        onPress={() => {
-                            setIsSessionsMode(false);
-                            setIsWorkoutsMode(true);
-                            setIsTrendsMode(false); // Reset Trends mode
-                            setSelectedWorkoutId(null);
-                            setSelectedCardIndex(0); // WorkoutShortcuts (Grid) is at index 0 in workouts mode
-                            setShowDetailView(true);
-                        }}
-                    >
-                        <Text style={[styles.sectionTitle, { marginHorizontal: 16, marginTop: 4, marginBottom: 12, fontSize: 17 }]}>Workout</Text>
-                        <View style={[styles.workoutGrid, { paddingHorizontal: 8, gap: 8 }]}>
-                            {allWorkouts.slice(0, 4).map((workout: Workout, index: number) => (
-                                <View
-                                    key={index}
-                                    style={[styles.workoutShortcutCard, { width: (SCREEN_WIDTH - 40 - 16 - 8) / 2 }]}
-                                >
-                                    {workout.SvgIcon && <workout.SvgIcon width={34} height={34} fill="#9DEC2C" style={{ marginBottom: 2 }} />}
-                                    <Text style={styles.shortcutName} numberOfLines={1}>{workout.name}</Text>
+                                <View style={{ marginTop: 9 }}>
+                                    <Text style={[styles.subLabel, { color: '#FFF', fontSize: 13, marginTop: 4, textTransform: 'none' }]}>Today</Text>
+                                    <View style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: -4 }}>
+                                        <Text style={[styles.metricValue, { color: MetricColors.sets, fontSize: 30, fontWeight: '700' }]}>
+                                            {setCount}{' '}
+                                            <Text style={[styles.unit, { fontSize: 20, fontWeight: '700' }]}>SET</Text>
+                                        </Text>
+                                    </View>
+                                    <View style={[styles.barChartContainer, { marginTop: -2 }]}>
+                                        {dailySetData.map((val, i) => {
+                                            const max = Math.max(...dailySetData, 1);
+                                            return (
+                                                <View key={i} style={{ width: 3, height: 70, justifyContent: 'flex-end' }}>
+                                                    <View style={[styles.bar, { height: 70, backgroundColor: '#4A4A4C', position: 'absolute', bottom: 0 }]} />
+                                                    {val > 0 && <View style={[styles.bar, { height: Math.max((val / max) * (70 * 0.8), 4), backgroundColor: '#FF4D7D' }]} />}
+                                                </View>
+                                            );
+                                        })}
+                                        <View style={[styles.chartLabelsOverlay, { justifyContent: 'space-between', paddingHorizontal: 0 }]}>
+                                            <Text style={styles.chartLabelText}>00</Text>
+                                            <Text style={styles.chartLabelText}>06</Text>
+                                            <Text style={styles.chartLabelText}>12</Text>
+                                            <Text style={styles.chartLabelText}>18</Text>
+                                        </View>
+                                    </View>
                                 </View>
-                            ))}
+                            </TouchableOpacity>
                         </View>
-                    </TouchableOpacity>
+                        <Text style={[styles.description, { fontSize: 13, marginTop: 10, marginBottom: 0 }]}>A quick glance at your total set count and strength volume for the day.</Text>
+                        <View style={[styles.sectionSeparator, { marginTop: 30, marginBottom: 30 }]} />
 
-                    <Text style={[styles.footerText, { marginTop: 10, marginBottom: 0 }]}>Add your favorite workout shortcuts back to your summary.</Text>
+                        {/* Sessions Section */}
+                        <TouchableOpacity
+                            style={[styles.sessionsSection, { width: '100%', borderRadius: 16, paddingTop: 12, paddingBottom: 2, paddingHorizontal: 16, marginBottom: 0 }]}
+                            activeOpacity={1}
+                            onPress={() => {
+                                setIsSessionsMode(true);
+                                setIsWorkoutsMode(false);
+                                setIsTrendsMode(false);
+                                setSelectedWorkoutId(null);
+                                setSelectedCardIndex(0);
+                                setShowDetailView(true);
+                            }}
+                        >
+                            <View style={styles.cardHeaderRow}>
+                                <Text style={styles.cardTitle}>Sessions</Text>
+                            </View>
+                            {recentSessions.length > 0 ? (
+                                recentSessions.slice(0, 3).map((session: any, idx: number) => {
+                                    const sessionDate = new Date(session.date);
+                                    const workout = allWorkouts.find(w => w.workoutId === session.workoutId);
+                                    const SvgIcon = workout?.SvgIcon;
+                                    const weightVal = session.settings?.weight ? parseFloat(session.settings.weight) : 0;
+                                    const cals = calculateCalories(session.workoutId, session.elapsedTime, weightVal, session.completedReps);
 
-                    {/* All Workouts - 3 metric stack for each */}
-                    {allWorkouts.map((workout, workoutIdx) => {
-                        const stats = workoutStats[workout.workoutId] || {
-                            strength: 0,
-                            sets: 0,
-                            intensityValue: 0,
-                            weeklySets: 0,
-                            weeklyStrength: 0,
-                            weeklyIntensity: '0:1',
-                            intensity: '0:1',
-                            charts: { 
-                                weeklyStrength: new Array(7).fill(0), 
-                                weeklySets: new Array(7).fill(0), 
-                                weeklyIntensity: new Array(7).fill(0) 
-                            }
-                        };
-                        const SvgIcon = workout.SvgIcon;
+                                    const isToday = sessionDate.toDateString() === new Date().toDateString();
+                                    const dateLabel = isToday ? 'Today' : sessionDate.toLocaleDateString('en-US', { weekday: 'long' });
+                                    const oneWeekAgo = new Date();
+                                    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+                                    const finalDateLabel = sessionDate < oneWeekAgo ? sessionDate.toLocaleDateString('de-DE') : dateLabel;
 
-                        const metrics = [
-                            { id: 'Intensity', title: workout.name, value: stats.weeklyIntensity || '0:1', unit: '', color: MetricColors.energy, chart: stats.charts?.weeklyIntensity || [0, 0, 0, 0, 0, 0, 0], label: 'Weekly Intensity', todayVal: stats.intensity || '0:1' },
-                            { id: 'SetCount', title: workout.name, value: stats.weeklySets || '0', unit: 'SET', color: MetricColors.sets, chart: stats.charts?.weeklySets || [0, 0, 0, 0, 0, 0, 0], label: 'Weekly Set Count', todayVal: stats.sets || '0' },
-                            { id: 'StrengthLevel', title: workout.name, value: stats.weeklyStrength || '0', unit: 'KG', color: MetricColors.weight, chart: stats.charts?.weeklyStrength || [0, 0, 0, 0, 0, 0, 0], label: 'Weekly Strength', todayVal: stats.strength || '0' },
-                        ];
+                                    return (
+                                        <View key={idx} style={[styles.sessionItem, { borderBottomWidth: idx < recentSessions.length - 1 ? 1 : 0, paddingVertical: 12 }]}>
+                                            <LinearGradient colors={['#122003', '#213705']} style={styles.sessionIconContainer} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+                                                {SvgIcon && <SvgIcon width={39} height={39} fill="#9DEC2C" />}
+                                            </LinearGradient>
+                                            <View style={styles.sessionInfo}>
+                                                <Text style={styles.sessionWorkoutName}>{session.workoutName}</Text>
+                                                <Text style={styles.sessionMetric}>{cals}<Text style={styles.sessionUnit}>KCAL</Text></Text>
+                                            </View>
+                                            <Text style={styles.sessionDateLabel}>{finalDateLabel}</Text>
+                                        </View>
+                                    );
+                                })
+                            ) : (
+                                <Text style={styles.emptyText}>No recent sessions</Text>
+                            )}
+                        </TouchableOpacity>
+                        <Text style={[styles.description, { fontSize: 13, marginTop: 10, marginBottom: 0 }]}>View your most recent workout sessions.</Text>
 
-                        return (
-                            <React.Fragment key={workout.workoutId}>
-                                <View style={[styles.sectionSeparator, { marginTop: 30, marginBottom: 30 }]} />
-                                <View style={styles.workoutStack}>
-                                    {metrics.map((m, idx) => {
-                                        const order = idx;
-                                        const stackStyle = order === 0 ? styles.workoutCardFarBack : order === 1 ? styles.workoutCardBack : styles.workoutCardFront;
-                                        return (
-                                            <TouchableOpacity
-                                                key={`${workout.workoutId}_${m.id}`}
-                                                style={[styles.halfCard, stackStyle]}
-                                                onPress={() => {
-                                                    setIsSessionsMode(false);
-                                                    setIsTrendsMode(false);
-                                                    setIsWorkoutsMode(true);
-                                                    setSelectedWorkoutId(workout.workoutId);
-                                                    // Tıklanan metriğe göre carousel index'ini ayarla
-                                                    const metricIndexMap: { [key: string]: number } = {
-                                                        'Intensity': 0,
-                                                        'SetCount': 1,
-                                                        'StrengthLevel': 2,
-                                                        'Cadence': 3,
-                                                        'Density': 4,
-                                                        'Consistency': 5,
-                                                        'Endurance': 6,
-                                                        'Balance': 7,
-                                                        'Energy': 8
-                                                    };
-                                                    setSelectedCardIndex(metricIndexMap[m.id] || 0);
-                                                    setShowDetailView(true);
-                                                }}
-                                                activeOpacity={1}
-                                            >
-                                                {/* Header: Icon + Workout Name */}
-                                                <View style={[styles.cardHeaderRow, { gap: 6, marginLeft: SquareCardMeasurements.workout.headerMarginLeft }]}> 
-                                                    {SvgIcon && <SvgIcon width={25} height={25} fill="#FFF" />}
-                                                    <Text style={styles.workoutCardTitle} numberOfLines={1}>{m.title}</Text>
-                                                </View>
-                                                {/* Metric Label */}
-                                                <Text style={styles.workoutSubLabel}>{m.label}</Text>
-                                                {/* Metric Value */}
-                                                <View style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: -6 }}>
-                                                    <Text style={[styles.workoutMetricValue, { color: m.color }]}>{m.value}</Text>
-                                                    <Text style={[styles.workoutUnit, { color: m.color }]}>{m.unit}</Text>
-                                                </View>
-                                                {/* Weekly Chart with Day Labels */}
-                                                <View style={styles.workoutChartContainer}>
-                                                    {(m.chart || [0, 0, 0, 0, 0, 0, 0]).map((val: number, i: number) => {
-                                                        const weekDays = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-                                                        const maxVal = Math.max(...(m.chart || [1])) || 1;
-                                                        const barHeight = (val / maxVal) * 30;
-                                                        return (
-                                                            <React.Fragment key={i}>
-                                                                {i === 0 && (
+                        <View style={[styles.sectionSeparator, { marginTop: 30, marginBottom: 30 }]} />
+
+                        {/* Trends Section */}
+                        <TouchableOpacity
+                            style={[styles.card, { width: '100%', backgroundColor: '#2A292A', borderRadius: 24, paddingTop: 16, paddingBottom: 6, paddingHorizontal: 20, marginBottom: 0 }]}
+                            activeOpacity={1}
+                            onPress={() => {
+                                setIsSessionsMode(false);
+                                setIsWorkoutsMode(false);
+                                setIsTrendsMode(true);
+                                setSelectedWorkoutId(null);
+                                setSelectedCardIndex(0);
+                                setShowDetailView(true);
+                            }}
+                        >
+                            <Text style={{ fontSize: 17, fontWeight: '600', color: '#FFF', marginBottom: 8 }}>Trends</Text>
+                            <View style={[styles.trendGrid, { marginTop: 0 }]}>
+                                {[{ label: 'Energy', val: trendStats.energy, unit: 'KCAL/DAY', color: MetricColors.energy },
+                                { label: 'Strength', val: trendStats.strength, unit: 'KG/DAY', color: MetricColors.weight },
+                                { label: 'Sets', val: trendStats.sets, unit: 'SETS/DAY', color: MetricColors.sets },
+                                { label: 'Consistency', val: trendStats.consistency, unit: '%', color: '#00C7BE' }].map((t, idx) => (
+                                    <View key={idx} style={[styles.trendItem, { marginBottom: 10 }]}>
+                                        <View style={styles.trendIconDown}><Feather name="chevron-down" size={38} color={t.color} /></View>
+                                        <View><Text style={styles.trendLabel}>{t.label}</Text><Text style={[styles.trendValue, { color: t.color }]}>{t.val} {t.unit}</Text></View>
+                                    </View>
+                                ))}
+                            </View>
+                        </TouchableOpacity>
+                        <Text style={[styles.description, { fontSize: 13, marginTop: 10, marginBottom: 0 }]}>Monitor your weekly averages for energy, strength, and consistency.</Text>
+
+                        <View style={[styles.sectionSeparator, { marginTop: 30, marginBottom: 30 }]} />
+
+                        <TouchableOpacity
+                            style={[styles.sectionCard, { paddingHorizontal: 0, paddingBottom: 8, paddingTop: 8, backgroundColor: '#2A292A' }]}
+                            activeOpacity={1}
+                            onPress={() => {
+                                setIsSessionsMode(false);
+                                setIsWorkoutsMode(true);
+                                setIsTrendsMode(false); // Reset Trends mode
+                                setSelectedWorkoutId(null);
+                                setSelectedCardIndex(0); // WorkoutShortcuts (Grid) is at index 0 in workouts mode
+                                setShowDetailView(true);
+                            }}
+                        >
+                            <Text style={[styles.sectionTitle, { marginHorizontal: 16, marginTop: 4, marginBottom: 12, fontSize: 17 }]}>Workout</Text>
+                            <View style={[styles.workoutGrid, { paddingHorizontal: 8, gap: 8 }]}>
+                                {allWorkouts.slice(0, 4).map((workout: Workout, index: number) => (
+                                    <View
+                                        key={index}
+                                        style={[styles.workoutShortcutCard, { width: (SCREEN_WIDTH - 40 - 16 - 8) / 2 }]}
+                                    >
+                                        {workout.SvgIcon && <workout.SvgIcon width={34} height={34} fill="#9DEC2C" style={{ marginBottom: 2 }} />}
+                                        <Text style={styles.shortcutName} numberOfLines={1}>{workout.name}</Text>
+                                    </View>
+                                ))}
+                            </View>
+                        </TouchableOpacity>
+
+                        <Text style={[styles.footerText, { marginTop: 10, marginBottom: 0 }]}>Add your favorite workout shortcuts back to your summary.</Text>
+
+                        {/* All Workouts - 3 metric stack for each */}
+                        {allWorkouts.map((workout, workoutIdx) => {
+                            const stats = workoutStats[workout.workoutId] || {
+                                strength: 0,
+                                sets: 0,
+                                intensityValue: 0,
+                                weeklySets: 0,
+                                weeklyStrength: 0,
+                                weeklyIntensity: '0:1',
+                                intensity: '0:1',
+                                charts: {
+                                    weeklyStrength: new Array(7).fill(0),
+                                    weeklySets: new Array(7).fill(0),
+                                    weeklyIntensity: new Array(7).fill(0)
+                                }
+                            };
+                            const SvgIcon = workout.SvgIcon;
+
+                            const metrics = [
+                                { id: 'Intensity', title: workout.name, value: stats.weeklyIntensity || '0:1', unit: '', color: MetricColors.energy, chart: stats.charts?.weeklyIntensity || [0, 0, 0, 0, 0, 0, 0], label: 'Weekly Intensity', todayVal: stats.intensity || '0:1' },
+                                { id: 'SetCount', title: workout.name, value: stats.weeklySets || '0', unit: 'SET', color: MetricColors.sets, chart: stats.charts?.weeklySets || [0, 0, 0, 0, 0, 0, 0], label: 'Weekly Set Count', todayVal: stats.sets || '0' },
+                                { id: 'StrengthLevel', title: workout.name, value: stats.weeklyStrength || '0', unit: 'KG', color: MetricColors.weight, chart: stats.charts?.weeklyStrength || [0, 0, 0, 0, 0, 0, 0], label: 'Weekly Strength', todayVal: stats.strength || '0' },
+                            ];
+
+                            return (
+                                <React.Fragment key={workout.workoutId}>
+                                    <View style={[styles.sectionSeparator, { marginTop: 30, marginBottom: 30 }]} />
+                                    <View style={styles.workoutStack}>
+                                        {metrics.map((m, idx) => {
+                                            const order = idx;
+                                            const stackStyle = order === 0 ? styles.workoutCardFarBack : order === 1 ? styles.workoutCardBack : styles.workoutCardFront;
+                                            return (
+                                                <TouchableOpacity
+                                                    key={`${workout.workoutId}_${m.id}`}
+                                                    style={[styles.halfCard, stackStyle]}
+                                                    onPress={() => {
+                                                        setIsSessionsMode(false);
+                                                        setIsTrendsMode(false);
+                                                        setIsWorkoutsMode(true);
+                                                        setSelectedWorkoutId(workout.workoutId);
+                                                        // Tıklanan metriğe göre carousel index'ini ayarla
+                                                        const metricIndexMap: { [key: string]: number } = {
+                                                            'Intensity': 0,
+                                                            'SetCount': 1,
+                                                            'StrengthLevel': 2,
+                                                            'Cadence': 3,
+                                                            'Density': 4,
+                                                            'Consistency': 5,
+                                                            'Endurance': 6,
+                                                            'Balance': 7,
+                                                            'Energy': 8
+                                                        };
+                                                        setSelectedCardIndex(metricIndexMap[m.id] || 0);
+                                                        setShowDetailView(true);
+                                                    }}
+                                                    activeOpacity={1}
+                                                >
+                                                    {/* Header: Icon + Workout Name */}
+                                                    <View style={[styles.cardHeaderRow, { gap: 6, marginLeft: SquareCardMeasurements.workout.headerMarginLeft }]}>
+                                                        {SvgIcon && <SvgIcon width={25} height={25} fill="#FFF" />}
+                                                        <Text style={styles.workoutCardTitle} numberOfLines={1}>{m.title}</Text>
+                                                    </View>
+                                                    {/* Metric Label */}
+                                                    <Text style={styles.workoutSubLabel}>{m.label}</Text>
+                                                    {/* Metric Value */}
+                                                    <View style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: -6 }}>
+                                                        <Text style={[styles.workoutMetricValue, { color: m.color }]}>{m.value}</Text>
+                                                        <Text style={[styles.workoutUnit, { color: m.color }]}>{m.unit}</Text>
+                                                    </View>
+                                                    {/* Weekly Chart with Day Labels */}
+                                                    <View style={styles.workoutChartContainer}>
+                                                        {(m.chart || [0, 0, 0, 0, 0, 0, 0]).map((val: number, i: number) => {
+                                                            const weekDays = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+                                                            const maxVal = Math.max(...(m.chart || [1])) || 1;
+                                                            const barHeight = (val / maxVal) * 30;
+                                                            return (
+                                                                <React.Fragment key={i}>
+                                                                    {i === 0 && (
+                                                                        <View style={{ width: 0.8, height: 42, backgroundColor: '#606166', alignSelf: 'flex-end', marginBottom: 2 }} />
+                                                                    )}
+                                                                    <View style={{ alignItems: 'center', width: '12%', justifyContent: 'flex-end', height: '100%' }}>
+                                                                        <View style={[styles.bar, { width: 6, height: Math.max(barHeight, 3), backgroundColor: m.color, borderRadius: 3 }]} />
+                                                                        <Text style={{ color: '#FFF', fontSize: 10, marginTop: 4 }}>{weekDays[i]}</Text>
+                                                                    </View>
                                                                     <View style={{ width: 0.8, height: 42, backgroundColor: '#606166', alignSelf: 'flex-end', marginBottom: 2 }} />
-                                                                )}
-                                                                <View style={{ alignItems: 'center', width: '12%', justifyContent: 'flex-end', height: '100%' }}>
-                                                                    <View style={[styles.bar, { width: 6, height: Math.max(barHeight, 3), backgroundColor: m.color, borderRadius: 3 }]} />
-                                                                    <Text style={{ color: '#FFF', fontSize: 10, marginTop: 4 }}>{weekDays[i]}</Text>
-                                                                </View>
-                                                                <View style={{ width: 0.8, height: 42, backgroundColor: '#606166', alignSelf: 'flex-end', marginBottom: 2 }} />
-                                                            </React.Fragment>
-                                                        );
-                                                    })}
-                                                </View>
-                                                {/* Today Footer */}
-                                                <Text style={styles.workoutTodayFooter}>
-                                                    <Text style={{ color: '#FFF' }}>Today: </Text>
-                                                    <Text style={{ color: m.color }}>{m.todayVal} {m.unit}</Text>
-                                                </Text>
-                                            </TouchableOpacity>
-                                        );
-                                    })}
-                                </View>
-                                <Text style={[styles.description, { fontSize: 13, marginTop: 10, marginBottom: 0 }]}>Track {workout.name} metrics and performance.</Text>
-                            </React.Fragment>
-                        );
-                    })}
+                                                                </React.Fragment>
+                                                            );
+                                                        })}
+                                                    </View>
+                                                    {/* Today Footer */}
+                                                    <Text style={styles.workoutTodayFooter}>
+                                                        <Text style={{ color: '#FFF' }}>Today: </Text>
+                                                        <Text style={{ color: m.color }}>{m.todayVal} {m.unit}</Text>
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                    </View>
+                                    <Text style={[styles.description, { fontSize: 13, marginTop: 10, marginBottom: 0 }]}>Track {workout.name} metrics and performance.</Text>
+                                </React.Fragment>
+                            );
+                        })}
 
 
-                    <View style={[styles.sectionSeparator, { marginVertical: 8 }]} />
-                        </View>
+                        <View style={[styles.sectionSeparator, { marginVertical: 8 }]} />
+                    </View>
                 </ScrollView>
             </View>
         );
@@ -1122,7 +1137,7 @@ export default function AddSummaryCardModal({ visible, onClose, onCardAdded }: A
                         weeklyEnergy: new Array(7).fill(0),
                     }
                 };
-                
+
                 carouselCards = [
                     { id: `${workout.workoutId}_SetCount`, workoutId: workout.workoutId, workoutName: workout.name, SvgIcon: workout.SvgIcon, metricTitle: 'Weekly Sets', metricId: 'SetCount', title: workout.name, description: `Track your weekly set count for ${workout.name}.`, color: MetricColors.sets, unit: 'SET', value: stats.weeklySets?.toString() || '0', todayValue: stats.sets?.toString() || '0', chart: stats.charts?.weeklySets || new Array(7).fill(0), isWorkoutMetric: true },
                     { id: `${workout.workoutId}_StrengthLevel`, workoutId: workout.workoutId, workoutName: workout.name, SvgIcon: workout.SvgIcon, metricTitle: 'Weekly Strength', metricId: 'StrengthLevel', title: workout.name, description: `Track your weekly strength volume for ${workout.name}.`, color: MetricColors.weight, unit: 'KG', value: stats.weeklyStrength?.toString() || '0', todayValue: stats.strength?.toString() || '0', chart: stats.charts?.weeklyStrength || new Array(7).fill(0), isWorkoutMetric: true },
@@ -1147,11 +1162,11 @@ export default function AddSummaryCardModal({ visible, onClose, onCardAdded }: A
                 isWorkoutCard: true
             }));
             carouselCards = [
-                { 
-                    id: 'WorkoutShortcuts', 
-                    title: 'Workouts', 
-                    description: 'Quickly start your most recent workouts', 
-                    color: '#9DEC2C' 
+                {
+                    id: 'WorkoutShortcuts',
+                    title: 'Workouts',
+                    description: 'Quickly start your most recent workouts',
+                    color: '#9DEC2C'
                 },
                 ...workoutCards
             ];
@@ -1159,6 +1174,7 @@ export default function AddSummaryCardModal({ visible, onClose, onCardAdded }: A
     } else {
         // Global metrics (Set Count, Strength Level, etc.)
         carouselCards = [
+            { id: 'DailyWorkout', title: 'Daily Workout', description: 'Your daily workout plan and schedule at a glance.', color: '#9DEC2C' },
             { id: 'SetCount', title: 'Set Count', metricTitle: 'Set Count', color: MetricColors.sets, unit: 'SET', value: statsDetail.sets.toString(), chart: statsDetail.charts.sets || [], description: 'A quick glance at your total set count for the day.' },
             { id: 'StrengthLevel', title: 'Strength Level', metricTitle: 'Strength Level', color: MetricColors.weight, unit: 'KG', value: statsDetail.strength.toString(), chart: statsDetail.charts.strength || [], description: 'Your total strength volume calculated for the day.' },
             { id: 'Energy', title: 'Energy', metricTitle: 'Energy', color: MetricColors.energy, unit: 'KCAL', value: (statsDetail.energy || 0).toString(), chart: statsDetail.charts.energy || [], description: 'Track your total energy burned throughout the day.' },
@@ -1172,23 +1188,23 @@ export default function AddSummaryCardModal({ visible, onClose, onCardAdded }: A
 
     const currentCard = carouselCards[selectedCardIndex % carouselCards.length];
 
-        const stickyTitleOpacity = scrollY.interpolate({
-            inputRange: [40, 70],
-            outputRange: [0, 1],
-            extrapolate: 'clamp'
-        });
+    const stickyTitleOpacity = scrollY.interpolate({
+        inputRange: [40, 70],
+        outputRange: [0, 1],
+        extrapolate: 'clamp'
+    });
 
-        const stickyTitleTranslateY = scrollY.interpolate({
-            inputRange: [40, 70],
-            outputRange: [10, 0],
-            extrapolate: 'clamp'
-        });
+    const stickyTitleTranslateY = scrollY.interpolate({
+        inputRange: [40, 70],
+        outputRange: [10, 0],
+        extrapolate: 'clamp'
+    });
 
     return (
         <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
             <View style={styles.container}>
 
-                <View style={[styles.header, { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 100, backgroundColor: 'transparent', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 64, paddingTop: 10 }]}> 
+                <View style={[styles.header, { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 100, backgroundColor: 'transparent', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 64, paddingTop: 10 }]}>
                     {/* Semi-transparent gradient background for sticky header */}
                     <Animated.View style={{
                         position: 'absolute',

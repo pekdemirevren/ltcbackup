@@ -16,13 +16,13 @@ export const SettingsScreenStyles = StyleSheet.create({
     paddingBottom: 20,
   },
   backButton: {
-  width: 48,
-  height: 48,
-  borderRadius: 24,
-  alignItems: "center",
-  justifyContent: "center",
-  borderWidth: 0.8,
-  borderColor: 'rgba(255,255,255,0.18)',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 0.8,
+    borderColor: 'rgba(255,255,255,0.18)',
   },
   topBackButton: {
     position: 'absolute',
@@ -129,4 +129,32 @@ export const SettingsScreenStyles = StyleSheet.create({
   pickerHeader: { padding: 16, alignItems: 'flex-end', borderBottomWidth: 1, borderBottomColor: colors.pickerHeaderBorder },
   pickerButtonText: { fontSize: 18, fontWeight: '600' },
   pickerItem: { color: colors.text, fontSize: 22 },
+  // Additional styles for WorkoutSettingsScreen compatibility
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: colors.text,
+    textAlign: 'center',
+    marginTop: 60,
+    marginBottom: 20,
+  },
+  settingCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 12,
+  },
+  settingInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  settingLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  settingValue: {
+    fontSize: 14,
+    marginTop: 4,
+  },
 });

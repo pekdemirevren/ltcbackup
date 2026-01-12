@@ -19,8 +19,8 @@ export default function MoveGoalScheduleScreen({ navigation }: Props) {
     { day: 'Saturday', goal: 500 },
     { day: 'Sunday', goal: 500 },
   ]);
-  const intervalRef = React.useRef<NodeJS.Timeout | null>(null);
-  const timeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     loadSchedule();

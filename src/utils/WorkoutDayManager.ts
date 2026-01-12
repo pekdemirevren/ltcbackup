@@ -243,3 +243,23 @@ export async function workoutDayHasCards(workoutDay: WorkoutDayType): Promise<bo
   const cards = await loadWorkoutDayCards(workoutDay);
   return cards.length > 0;
 }
+
+/**
+ * Set workout day for a specific date manually
+ */
+export async function setWorkoutDayForDate(date: Date, workoutDay: WorkoutDayType): Promise<void> {
+  const dateString = date.toISOString().split('T')[0];
+  const schedule = await loadDailySchedule();
+  schedule[dateString] = workoutDay;
+  await saveDailySchedule(schedule);
+  console.log(`✅ Set ${workoutDay} for ${dateString}`);
+}
+
+/**
+ * Get workout day for a specific date
+ */
+export async function getWorkoutDayForDate(date: Date): Promise<WorkoutDayType | null> {
+  const dateString = date.toISOString().split('T')[0];
+  const schedule = await loadDailySchedule();
+  return schedule[dateString] || null;
+}

@@ -1,11 +1,17 @@
 
 import React from 'react';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Path, SvgProps } from 'react-native-svg';
 
 const DEFAULT_COLOR = '#000000';
 
+interface WeightIconProps extends SvgProps {
+  color?: string;
+  width?: number;
+  height?: number;
+}
+
 const SvgComponent = React.memo(
-  React.forwardRef(function SvgComponent({ color = DEFAULT_COLOR, width = 32, height = 32, ...props }, ref) {
+  React.forwardRef<React.ElementRef<typeof Svg>, WeightIconProps>(function SvgComponent({ color = DEFAULT_COLOR, width = 32, height = 32, ...props }, ref) {
     // 32x32 için orijinal viewBox'ı 1/24 oranında küçültüyoruz (768/32 = 24)
     // Orijinal viewBox: 0 0 768 768, scale(1)
     return (

@@ -25,10 +25,10 @@ export const initializePurchases = async () => {
 export const checkProStatus = async (): Promise<boolean> => {
   try {
     const customerInfo: CustomerInfo = await Purchases.getCustomerInfo();
-    
+
     // Check for the "pro" entitlement
     const isPro = customerInfo.entitlements.active['pro'] !== undefined;
-    
+
     return isPro;
   } catch (error) {
     console.error('Error checking pro status:', error);
@@ -39,12 +39,12 @@ export const checkProStatus = async (): Promise<boolean> => {
 // Get available products (packages)
 export const getOfferings = async (): Promise<PurchasesPackage[]> => {
   try {
-    const offerings: PurchasesOffering = await Purchases.getOfferings();
-    
+    const offerings: any = await Purchases.getOfferings();
+
     if (offerings.current !== null && offerings.current.availablePackages.length !== 0) {
       return offerings.current.availablePackages;
     }
-    
+
     return [];
   } catch (error) {
     console.error('Error getting offerings:', error);
@@ -62,23 +62,23 @@ interface PurchaseResult {
 // Perform a purchase
 export const purchasePro = async (): Promise<PurchaseResult> => {
   try {
-    const offerings: PurchasesOffering = await Purchases.getOfferings();
-    
+    const offerings: any = await Purchases.getOfferings();
+
     if (offerings.current !== null && offerings.current.availablePackages.length !== 0) {
       // Get the first package (assuming it's the Lifetime)
       const lifetimePackage: PurchasesPackage = offerings.current.availablePackages[0];
-      
+
       const { customerInfo } = await Purchases.purchasePackage(lifetimePackage);
-      
+
       // Check if Pro is active
       const isPro = customerInfo.entitlements.active['pro'] !== undefined;
-      
+
       return {
         success: true,
         isPro: isPro,
       };
     }
-    
+
     return {
       success: false,
       error: 'No packages available',
@@ -90,7 +90,7 @@ export const purchasePro = async (): Promise<PurchaseResult> => {
         cancelled: true,
       };
     }
-    
+
     console.error('Error purchasing:', error);
     return {
       success: false,
@@ -104,7 +104,7 @@ export const restorePurchases = async (): Promise<PurchaseResult> => {
   try {
     const customerInfo: CustomerInfo = await Purchases.restorePurchases();
     const isPro = customerInfo.entitlements.active['pro'] !== undefined;
-    
+
     return {
       success: true,
       isPro: isPro,

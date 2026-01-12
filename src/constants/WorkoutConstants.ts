@@ -33,6 +33,7 @@ export function getWorkoutByName(name: string) {
 export const SUMMARY_CARD_STORAGE_KEY = 'visible_summary_cards';
 
 export const DEFAULT_VISIBLE_CARDS = [
+  'DailyWorkout',
   'ActivityRing',
   'StrengthLevel',
   'SetCount',

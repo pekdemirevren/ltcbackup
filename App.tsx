@@ -17,7 +17,10 @@ import RootNavigator from './src/navigation/RootNavigator';
 // Suppress the deprecated InteractionManager warning
 const originalWarn = console.warn;
 console.warn = (message, ...args) => {
-  if (typeof message === 'string' && message.includes('InteractionManager has been deprecated')) {
+  if (typeof message === 'string' && (
+    message.includes('InteractionManager has been deprecated') ||
+    message.includes('SafeAreaView has been deprecated')
+  )) {
     return;
   }
   originalWarn(message, ...args);

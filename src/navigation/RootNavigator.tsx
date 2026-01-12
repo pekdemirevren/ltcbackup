@@ -43,11 +43,9 @@ import AllCategoriesScreen from '../screens/AllCategoriesScreen';
 import SessionsScreen from '../screens/SessionsScreen';
 import WorkoutCategoryDetailScreen from '../screens/WorkoutCategoryDetailScreen';
 import DailyWorkoutDetailScreen from '../screens/DailyWorkoutDetailScreen';
-import WorkoutCalendarScreen from '../screens/WorkoutCalendarScreen';
 import WorkoutEventDetailScreen from '../screens/WorkoutEventDetailScreen';
 import EventDetailScreen from '../screens/EventDetailScreen';
 import CreateWorkoutEventScreen from '../screens/CreateWorkoutEventScreen';
-import PlanlamaEkrani from '../screens/PlanlamaEkrani';
 import type { SharingWorkoutData } from '../types/sharing';
 
 // TypeScript Types
@@ -61,6 +59,7 @@ export interface TimerScreenParams {
     greenReps: string;
     redReps: string;
     cycleTrackingEnabled: boolean;
+    weight: string;
   };
   modeType?: string;
   initialGreenTime?: string;
@@ -80,7 +79,7 @@ export type RootStackParamList = {
   Main: undefined;
   Timer: TimerScreenParams;
   Summary: undefined;
-  SummaryOverview: undefined;
+  SummaryOverview: { openCalendar?: boolean; selectedDate?: string } | undefined;
   DailySummaryDetail: undefined;
   Cadence: undefined;
   Intensity: undefined;
@@ -112,7 +111,7 @@ export type RootStackParamList = {
   SharingMain: undefined;
   CustomizeSharing: { workoutData: SharingWorkoutData; performedWorkouts: string };
   Settings: undefined;
-  WorkoutSettings: undefined;
+  WorkoutSettings: { workoutId: string; workoutName: string };
   WorkoutMain: undefined;
   WorkoutSummaryScreen: { workoutId: string; workoutName: string };
   GenericWorkoutSettingsScreen: { workoutId: string; workoutName: string };
@@ -120,28 +119,29 @@ export type RootStackParamList = {
   LoopScreen: { workoutId?: string; workoutName?: string };
   LoopTime: { workoutId?: string; workoutName?: string; isAddMode?: boolean; blockId?: string };
   LoopSpeed: { workoutId?: string; workoutName?: string; infiniteTime?: string; isAddMode?: boolean; blockId?: string };
-  TimeSelectionScreen: { settings?: any; workoutId?: string; isAddMode?: boolean; blockId?: string };
+  TimeSelectionScreen: { settings?: any; workoutId?: string; workoutName?: string; isAddMode?: boolean; blockId?: string };
   GreenTimeSettingsScreen: { settings?: any; workoutId?: string; isAddMode?: boolean; blockId?: string };
   RedTimeSettingsScreen: { settings?: any; workoutId?: string; isAddMode?: boolean; blockId?: string };
-  SpeedSelectionScreen: { workoutId?: string; settings?: any; isAddMode?: boolean; blockId?: string };
+  SpeedSelectionScreen: { workoutId?: string; workoutName?: string; settings?: any; isAddMode?: boolean; blockId?: string };
   GreenSpeedSettingsScreen: { settings?: any; workoutId?: string; isAddMode?: boolean; blockId?: string };
   RedSpeedSettingsScreen: { settings?: any; workoutId?: string; isAddMode?: boolean; blockId?: string };
-  LapSelectionScreen: { workoutId?: string; settings?: any; isAddMode?: boolean; blockId?: string };
+  LapSelectionScreen: { workoutId?: string; workoutName?: string; settings?: any; isAddMode?: boolean; blockId?: string };
   GreenLapSettingsScreen: { settings?: any; workoutId?: string; isAddMode?: boolean; blockId?: string };
   RedLapSettingsScreen: { settings?: any; workoutId?: string; isAddMode?: boolean; blockId?: string };
   WeightSelectionScreen: { workoutId: string; settings?: any; isAddMode?: boolean; blockId?: string };
-  CreateWorkoutBlockScreen: { workoutId: string; type: 'loop' | 'time' | 'speed' | 'lap' };
+  CreateWorkoutBlockScreen: { workoutId: string; type: 'loop' | 'time' | 'speed' | 'lap' | 'weight' };
   // New screens for Categories
   AllCategories: undefined;
   SessionsScreen: undefined;
   WorkoutCategoryDetail: { workoutId?: string; workoutName?: string; categoryId?: string; categoryTitle?: string; workoutIds?: string[]; focusMetric?: string };
-  DailyWorkoutDetail: { workoutDay?: string; currentDay?: number; totalDays?: number; moveCount?: number; workoutIds?: string[]; dailyCalorieGoal?: number };
+  DailyWorkoutDetail: { workoutDay?: string; currentDay?: number; totalDays?: number; moveCount?: number; workoutIds?: string[]; dailyCalorieGoal?: number; eventId?: string; date?: string };
   // Calendar Screens
-  WorkoutCalendar: { showMonthView?: boolean; timestamp?: number } | undefined;
   WorkoutEventDetail: { eventId: string; date: string };
   EventDetail: { eventId: string; date: string };
-  CreateWorkoutEvent: { date?: string; eventId?: string; editMode?: boolean };
-  PlanlamaEkrani: undefined;
+  CreateWorkoutEvent: { date?: string; eventId?: string; editMode?: boolean; startTime?: string; endTime?: string; workoutDay?: string; title?: string };
+  WorkoutSelectionScreen: undefined;
+  CreateWorkoutScreen: undefined;
+  TimeSettingsScreen: { workoutId?: string; workoutName?: string; onSave?: (settings: any) => void; settings?: any };
 };
 
 const Tab = createNativeBottomTabNavigator<RootStackParamList>();
@@ -278,23 +278,21 @@ export default function RootNavigator() {
       <RootStack.Screen name="RedSpeedSettingsScreen" component={RedSpeedSettingsScreen} />
       <RootStack.Screen name="GreenLapSettingsScreen" component={GreenLapSettingsScreen} />
       <RootStack.Screen name="RedLapSettingsScreen" component={RedLapSettingsScreen} />
-      
+
       {/* Categories Screens */}
       <RootStack.Screen name="AllCategories" component={AllCategoriesScreen} />
       <RootStack.Screen name="SessionsScreen" component={SessionsScreen} />
       <RootStack.Screen name="WorkoutCategoryDetail" component={WorkoutCategoryDetailScreen} />
       <RootStack.Screen name="DailyWorkoutDetail" component={DailyWorkoutDetailScreen} />
-      
+
       {/* Calendar Screens */}
-      <RootStack.Screen name="WorkoutCalendar" component={WorkoutCalendarScreen} />
       <RootStack.Screen name="WorkoutEventDetail" component={WorkoutEventDetailScreen} />
       <RootStack.Screen name="EventDetail" component={EventDetailScreen} />
-      <RootStack.Screen 
-        name="CreateWorkoutEvent" 
+      <RootStack.Screen
+        name="CreateWorkoutEvent"
         component={CreateWorkoutEventScreen}
         options={{ presentation: 'modal' }}
       />
-      <RootStack.Screen name="PlanlamaEkrani" component={PlanlamaEkrani} />
     </RootStack.Navigator>
   );
 }

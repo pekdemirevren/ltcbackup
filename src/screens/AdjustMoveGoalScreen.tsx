@@ -10,8 +10,8 @@ type Props = StackScreenProps<RootStackParamList, 'AdjustMoveGoal'>;
 
 export default function AdjustMoveGoalScreen({ navigation }: Props) {
   const [goal, setGoal] = useState(500);
-  const intervalRef = React.useRef<NodeJS.Timeout | null>(null);
-  const timeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     loadTodayGoal();
@@ -19,41 +19,41 @@ export default function AdjustMoveGoalScreen({ navigation }: Props) {
 
   const loadTodayGoal = async () => {
     try {
-        // Check for override first
-        const todayStr = new Date().toDateString();
-        const storedOverride = await AsyncStorage.getItem('dailyMoveGoalOverride');
-        
-        if (storedOverride) {
-            const override = JSON.parse(storedOverride);
-            if (override.date === todayStr) {
-                setGoal(override.goal);
-                return;
-            }
-        }
+      // Check for override first
+      const todayStr = new Date().toDateString();
+      const storedOverride = await AsyncStorage.getItem('dailyMoveGoalOverride');
 
-        // Fallback to schedule
-        const storedSchedule = await AsyncStorage.getItem('moveGoalSchedule');
-        if (storedSchedule) {
-            const schedule = JSON.parse(storedSchedule);
-            const dayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
-            const dayItem = schedule.find((s: any) => s.day === dayName);
-            if (dayItem) {
-                setGoal(dayItem.goal);
-            }
+      if (storedOverride) {
+        const override = JSON.parse(storedOverride);
+        if (override.date === todayStr) {
+          setGoal(override.goal);
+          return;
         }
+      }
+
+      // Fallback to schedule
+      const storedSchedule = await AsyncStorage.getItem('moveGoalSchedule');
+      if (storedSchedule) {
+        const schedule = JSON.parse(storedSchedule);
+        const dayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+        const dayItem = schedule.find((s: any) => s.day === dayName);
+        if (dayItem) {
+          setGoal(dayItem.goal);
+        }
+      }
     } catch (e) {
-        console.error('Failed to load today goal', e);
+      console.error('Failed to load today goal', e);
     }
   };
 
   const saveTodayGoal = async () => {
     try {
-        const todayStr = new Date().toDateString();
-        const override = { date: todayStr, goal };
-        await AsyncStorage.setItem('dailyMoveGoalOverride', JSON.stringify(override));
-        navigation.goBack();
+      const todayStr = new Date().toDateString();
+      const override = { date: todayStr, goal };
+      await AsyncStorage.setItem('dailyMoveGoalOverride', JSON.stringify(override));
+      navigation.goBack();
     } catch (e) {
-        console.error('Failed to save today goal', e);
+      console.error('Failed to save today goal', e);
     }
   };
 
@@ -96,8 +96,8 @@ export default function AdjustMoveGoalScreen({ navigation }: Props) {
         </Text>
 
         <View style={styles.controlsContainer}>
-          <TouchableOpacity 
-            style={styles.controlButton} 
+          <TouchableOpacity
+            style={styles.controlButton}
             onPressIn={() => startAdjusting(-10)}
             onPressOut={stopAdjusting}
           >
@@ -109,8 +109,8 @@ export default function AdjustMoveGoalScreen({ navigation }: Props) {
             <Text style={styles.unitText}>KILOCALORIES/DAY</Text>
           </View>
 
-          <TouchableOpacity 
-            style={styles.controlButton} 
+          <TouchableOpacity
+            style={styles.controlButton}
             onPressIn={() => startAdjusting(10)}
             onPressOut={stopAdjusting}
           >
@@ -152,29 +152,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   infoBox: {
-      position: 'absolute',
-      top: 0,
-      backgroundColor: '#2C2C2E',
-      padding: 12,
-      borderRadius: 16,
-      alignItems: 'center',
-      width: '100%',
-      marginBottom: 20,
-      display: 'none' // Hiding this as it seems like a system notification in the screenshot
+    position: 'absolute',
+    top: 0,
+    backgroundColor: '#2C2C2E',
+    padding: 12,
+    borderRadius: 16,
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 20,
+    display: 'none' // Hiding this as it seems like a system notification in the screenshot
   },
   infoHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginBottom: 4
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4
   },
   infoTitle: {
-      color: '#FFF',
-      fontWeight: '600',
-      marginLeft: 6
+    color: '#FFF',
+    fontWeight: '600',
+    marginLeft: 6
   },
   infoSubtitle: {
-      color: '#8E8E93',
-      fontSize: 12
+    color: '#8E8E93',
+    fontSize: 12
   },
   title: {
     fontSize: 22,

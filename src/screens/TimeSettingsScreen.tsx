@@ -13,20 +13,30 @@ import {
 import { Picker } from '@react-native-picker/picker';
 import { StackScreenProps } from '@react-navigation/stack';
 
-import Theme from '../styles/Theme';
+import Theme from '../constants/theme';
 import LoopIcon from '../assets/icons/LoopIcon';
 import TimeIcon from '../assets/icons/TimeIcon';
-import { ThemeContext } from '../styles/ThemeContext';
+import { ThemeContext } from '../contexts/ThemeContext';
 import { TimerContext } from '../contexts/TimerContext';
 import { getStyles } from '../styles/TimeSettingsScreen.styles';
-import { RootStackParamList } from '../App';
+import { RootStackParamList } from '../navigation/RootNavigator';
 
 // Android'de LayoutAnimation'ı etkinleştir
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-type TimeSettingsScreenProps = StackScreenProps<RootStackParamList, 'TimeSettingsScreen'>; // Assuming this screen will be added to RootStackParamList
+// Define the type for TimeSettingsScreenProps using the imported RootStackParamList
+type TimeSettingsScreenProps = StackScreenProps<RootStackParamList, 'TimeSettingsScreen'>;
+
+// Assuming RootStackParamList is defined in '../navigation/RootNavigator' as follows:
+// export type RootStackParamList = {
+//   CreateWorkoutEvent: { date?: string; eventId?: string; editMode?: boolean; startTime?: string; endTime?: string };
+//   PlanlamaEkrani: undefined;
+//   WorkoutSelectionScreen: undefined;
+//   CreateWorkoutScreen: undefined;
+//   TimeSettingsScreen: { workoutId?: string; workoutName?: string; onSave?: (settings: { greenTime: string; redTime: string }) => void; settings?: { greenTime: string; redTime: string } };
+// };
 
 export function TimeSettingsScreen({ route, navigation }: TimeSettingsScreenProps) {
   const { workoutId, workoutName, onSave, settings } = route.params || {};
@@ -115,9 +125,9 @@ export function TimeSettingsScreen({ route, navigation }: TimeSettingsScreenProp
           onPress={() => togglePicker('greenTime')}
           activeOpacity={0.8}
         >
-            <View style={styles.iconContainer}>
-              <LoopIcon width={32} height={32} color={colors.time.primary} />
-            </View>
+          <View style={styles.iconContainer}>
+            <LoopIcon width={32} height={32} color={colors.time.primary} />
+          </View>
           <Text style={styles.cardTitle}>Workout Time</Text>
           <View style={[styles.valueContainer, { backgroundColor: colors.valueBackground }]}>
             <Text style={[styles.valueText, { color: isGreenPickerVisible ? colors.time.primary : colors.text }]}>{greenTime}sec</Text>
@@ -144,9 +154,9 @@ export function TimeSettingsScreen({ route, navigation }: TimeSettingsScreenProp
           onPress={() => togglePicker('redTime')}
           activeOpacity={0.8}
         >
-            <View style={styles.iconContainer}>
-              <TimeIcon width={32} height={32} color={colors.time.primary} />
-            </View>
+          <View style={styles.iconContainer}>
+            <TimeIcon width={32} height={32} color={colors.time.primary} />
+          </View>
           <Text style={styles.cardTitle}>Break Time</Text>
           <View style={[styles.valueContainer, { backgroundColor: colors.valueBackground }]}>
             <Text style={[styles.valueText, { color: isRedPickerVisible ? colors.time.primary : colors.text }]}>{redTime}sec</Text>

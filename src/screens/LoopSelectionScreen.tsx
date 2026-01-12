@@ -17,7 +17,14 @@ import SpeedIcon from '../assets/icons/speed';
 type LoopSelectionScreenProps = StackScreenProps<RootStackParamList, 'LoopSelection'> & {
   route: {
     params: {
+      workoutId?: string;
+      workoutName?: string;
       isAddMode?: boolean;
+      blockId?: string;
+      settings?: {
+        infiniteLoopTime?: string;
+        infiniteSpeed?: number;
+      };
     }
   }
 };
@@ -47,9 +54,9 @@ export function LoopSelectionScreen({ route, navigation }: LoopSelectionScreenPr
     useCallback(() => {
       const loadSettings = async () => {
         if (blockSettings) {
-             if (blockSettings.infiniteLoopTime) setLocalInfiniteLoopTime(blockSettings.infiniteLoopTime);
-             if (blockSettings.infiniteSpeed) setLocalInfiniteSpeed(blockSettings.infiniteSpeed / 1000);
-             return;
+          if (blockSettings.infiniteLoopTime) setLocalInfiniteLoopTime(blockSettings.infiniteLoopTime);
+          if (blockSettings.infiniteSpeed) setLocalInfiniteSpeed(blockSettings.infiniteSpeed / 1000);
+          return;
         }
         if (!workoutId) return;
         try {
@@ -199,9 +206,9 @@ export function LoopSelectionScreen({ route, navigation }: LoopSelectionScreenPr
 
         {/* Start Workout Button */}
         {!isAddMode && (
-        <TouchableOpacity onPress={handleStart} style={[styles.startButton, { backgroundColor: colors.quickStart.primary }]} activeOpacity={0.9}>
-          <Text style={styles.startButtonText}>Start Workout</Text>
-        </TouchableOpacity>
+          <TouchableOpacity onPress={handleStart} style={[styles.startButton, { backgroundColor: colors.quickStart.primary }]} activeOpacity={0.9}>
+            <Text style={styles.startButtonText}>Start Workout</Text>
+          </TouchableOpacity>
         )}
       </ScrollView>
     </View>

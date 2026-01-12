@@ -14,12 +14,27 @@ import {
   Pressable,
   Platform,
   Text,
+  Modal,
+  TouchableWithoutFeedback,
 } from 'react-native';
+import AnimatedRe, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { BlurView } from '@react-native-community/blur';
-import {
-  LiquidGlassView,
-  isLiquidGlassSupported,
-} from '@callstack/liquid-glass';
+import Feather from 'react-native-vector-icons/Feather';
+// Safe import with fallback for unsupported iOS versions
+let LiquidGlassView: any = null;
+let isLiquidGlassSupported: boolean = false;
+
+try {
+  const liquidGlass = require('@callstack/liquid-glass');
+  LiquidGlassView = liquidGlass.LiquidGlassView;
+  isLiquidGlassSupported = liquidGlass.isLiquidGlassSupported === true;
+} catch (e) {
+  // @callstack/liquid-glass not available or failed to load
+  isLiquidGlassSupported = false;
+}
+
+// Safety check: only use native LiquidGlass on iOS 26+ when explicitly supported
+const supportsNativeLiquidGlass = Platform.OS === 'ios' && isLiquidGlassSupported === true && LiquidGlassView !== null;
 
 interface LiquidGlassProps {
   children: React.ReactNode;
@@ -118,7 +133,7 @@ export const LiquidGlass: React.FC<LiquidGlassProps> = ({
   };
 
   // Use native LiquidGlassView on iOS 26+ if supported
-  if (Platform.OS === 'ios' && isLiquidGlassSupported) {
+  if (supportsNativeLiquidGlass) {
     const nativeContent = (
       <Animated.View
         style={[
@@ -176,27 +191,27 @@ export const LiquidGlass: React.FC<LiquidGlassProps> = ({
         <BlurView
           style={[StyleSheet.absoluteFill, { borderRadius }]}
           blurType="ultraThinMaterialDark"
-          blurAmount={25}
-          reducedTransparencyFallbackColor="rgba(40,40,40,0.85)"
+          blurAmount={32}
+          reducedTransparencyFallbackColor="rgba(30,30,30,0.75)"
         />
       ) : (
-        <View 
+        <View
           style={[
-            StyleSheet.absoluteFill, 
-            { 
-              backgroundColor: 'rgba(40,40,40,0.75)',
+            StyleSheet.absoluteFill,
+            {
+              backgroundColor: 'rgba(30,30,30,0.65)',
               borderRadius,
             }
-          ]} 
+          ]}
         />
       )}
 
-      {/* Glass tint overlay */}
+      {/* Glass tint overlay - reduced opacity for more blur visibility */}
       <View
         style={[
           StyleSheet.absoluteFill,
           {
-            backgroundColor: 'rgba(255,255,255,0.08)',
+            backgroundColor: 'rgba(255,255,255,0.05)',
             borderRadius,
           }
         ]}
@@ -309,6 +324,8 @@ interface LiquidGlassMenuItemProps {
   onPress?: () => void;
   textColor?: string;
   iconWidth?: number;
+  textAlign?: 'left' | 'center' | 'right';
+  showCheck?: boolean;
 }
 
 export const LiquidGlassMenuItem: React.FC<LiquidGlassMenuItemProps> = ({
@@ -317,6 +334,8 @@ export const LiquidGlassMenuItem: React.FC<LiquidGlassMenuItemProps> = ({
   onPress,
   textColor = '#FFF',
   iconWidth = 20,
+  textAlign = 'left',
+  showCheck = false,
 }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const bgOpacity = useRef(new Animated.Value(0)).current;
@@ -380,17 +399,83 @@ export const LiquidGlassMenuItem: React.FC<LiquidGlassMenuItemProps> = ({
             {icon}
           </View>
         )}
-        <Animated.Text style={[styles.menuText, { color: textColor }]}>
+        <Animated.Text style={[styles.menuText, { color: textColor, textAlign: textAlign, flex: 1 }]}>
           {label}
         </Animated.Text>
+        {showCheck && (
+          <View style={styles.checkIcon}>
+            <Feather name="check" size={18} color="#FFF" />
+          </View>
+        )}
       </Animated.View>
     </Pressable>
+  );
+};
+
+interface LiquidGlassCardWrapperProps {
+  visible: boolean;
+  children: React.ReactNode;
+  position: { top: number; right: number };
+  onDismiss: () => void;
+}
+
+export const LiquidGlassCardWrapper = ({
+  visible,
+  children,
+  position,
+  onDismiss
+}: LiquidGlassCardWrapperProps) => {
+  const opacity = useSharedValue(0);
+  const scale = useSharedValue(0.3);
+
+  React.useEffect(() => {
+    if (visible) {
+      opacity.value = withSpring(1, { damping: 25, stiffness: 300 });
+      scale.value = withSpring(1, { damping: 25, stiffness: 300 });
+    } else {
+      opacity.value = withSpring(0, { damping: 25, stiffness: 300 });
+      scale.value = withSpring(0.3, { damping: 25, stiffness: 300 });
+    }
+  }, [visible]);
+
+  const animStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [
+      { scale: scale.value },
+      { translateY: (1 - scale.value) * -50 }
+    ],
+  }));
+
+  if (!visible) return null;
+
+  return (
+    <Modal transparent visible={true} animationType="none">
+      <TouchableWithoutFeedback onPress={onDismiss}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' }}>
+          <AnimatedRe.View
+            style={[
+              {
+                position: 'absolute',
+                top: position.top,
+                right: position.right,
+              },
+              animStyle
+            ]}
+          >
+            <TouchableWithoutFeedback>
+              {children}
+            </TouchableWithoutFeedback>
+          </AnimatedRe.View>
+        </View>
+      </TouchableWithoutFeedback>
+    </Modal>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     overflow: 'hidden',
+    backgroundColor: 'rgba(40, 40, 40, 0.85)', // Fallback background
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -440,12 +525,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   menuText: {
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: 17,
+    fontWeight: '400',
+  },
+  checkIcon: {
+    marginLeft: 10,
+    opacity: 0.8,
   },
 });
 
-// Re-export isLiquidGlassSupported for convenience
-export { isLiquidGlassSupported };
+// Re-export for convenience
+export { isLiquidGlassSupported, supportsNativeLiquidGlass };
 
 export default LiquidGlass;

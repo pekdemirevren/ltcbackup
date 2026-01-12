@@ -29,15 +29,16 @@ import { TrendsSquareCardStyle } from '../styles/trendssquarecardstyle';
 import { SessionsSquareCardStyle } from '../styles/sessionssquarecardstyle';
 import { SquareCardMeasurements } from '../styles/SquareCardBase';
 import { DailyWorkoutWidget } from '../components/Summary';
-import { 
-  getTodaysWorkoutDay, 
-  getCurrentDayNumber, 
-  loadHiddenWorkoutDays, 
-  hideWorkoutDay, 
-  showWorkoutDay,
+import {
+  getTodaysWorkoutDay,
+  getCurrentDayNumber,
+  loadDailySchedule,
+  DailySchedule,
   ALL_WORKOUT_DAYS,
-  WorkoutDayType 
+  WorkoutDayType
 } from '../utils/WorkoutDayManager';
+import CollapsibleCalendarCard, { Event } from '../components/CollapsibleCalendarCard';
+import CalendarWidget from '../components/CalendarWidget';
 
 const QUICK_START_STORAGE_KEY = '@workout_quick_start_cards';
 const LAST_ACTIVITY_WORKOUT_ID_KEY = '@last_activity_workout_id';
@@ -46,7 +47,7 @@ type SummaryScreenProps = StackScreenProps<RootStackParamList, 'SummaryOverview'
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-export default function SummaryScreen({ navigation }: SummaryScreenProps) {
+export default function SummaryScreen({ navigation, route }: SummaryScreenProps) {
   const themeContext = useContext(ThemeContext);
   const timerContext = useContext(TimerContext);
   const colors = themeContext?.colors || { background: '#000', text: '#FFF' };
@@ -103,8 +104,23 @@ export default function SummaryScreen({ navigation }: SummaryScreenProps) {
 
   // Today's Workout Day State
   const [todaysWorkoutDay, setTodaysWorkoutDay] = useState<WorkoutDayType | null>(null);
-  const [hiddenWorkoutDays, setHiddenWorkoutDays] = useState<WorkoutDayType[]>([]);
-  const [workoutDayModalVisible, setWorkoutDayModalVisible] = useState(false);
+
+  // Workout Event Detail Modal State (iOS Calendar style)
+  const [workoutEventDetailVisible, setWorkoutEventDetailVisible] = useState(false);
+  const [selectedWorkoutEvent, setSelectedWorkoutEvent] = useState<{
+    workoutDay: WorkoutDayType;
+    date: Date;
+    startTime: string;
+    endTime: string;
+  } | null>(null);
+
+  // Calendar State
+  const [calendarSchedule, setCalendarSchedule] = useState<DailySchedule>({});
+  const [calendarEvents, setCalendarEvents] = useState<Event[]>([]);
+  const [fullCalendarVisible, setFullCalendarVisible] = useState(false);
+  const [calendarInitialViewMode, setCalendarInitialViewMode] = useState<'day' | 'month' | 'year'>('month');
+  const [calendarInitialDate, setCalendarInitialDate] = useState<Date | undefined>(undefined);
+  const [calendarKey, setCalendarKey] = useState(0); // Key to force remount
 
   const latestSession = recentSessions.length > 0 ? recentSessions[0] : null;
 
@@ -166,6 +182,22 @@ export default function SummaryScreen({ navigation }: SummaryScreenProps) {
     console.log('✅ SummaryScreen mounted');
   }, []);
 
+  // Handle openCalendar parameter from WorkoutEventDetailScreen
+  useEffect(() => {
+    if (route.params?.openCalendar) {
+      // Set to day view with the selected date
+      setCalendarInitialViewMode('day');
+      if (route.params?.selectedDate) {
+        setCalendarInitialDate(new Date(route.params.selectedDate));
+      }
+      // Increment key to force CollapsibleCalendarCard to remount with new props
+      setCalendarKey(prev => prev + 1);
+      setFullCalendarVisible(true);
+      // Reset the param so it doesn't reopen on subsequent navigations
+      navigation.setParams({ openCalendar: undefined, selectedDate: undefined });
+    }
+  }, [route.params?.openCalendar]);
+
   useEffect(() => {
     if (isEditing) {
       scrollRef.current?.scrollTo({ y: 0, animated: true });
@@ -204,34 +236,28 @@ export default function SummaryScreen({ navigation }: SummaryScreenProps) {
     try {
       const today = await getTodaysWorkoutDay();
       setTodaysWorkoutDay(today);
-      
-      const hidden = await loadHiddenWorkoutDays();
-      setHiddenWorkoutDays(hidden);
     } catch (error) {
       console.error('Error loading today workout day:', error);
     }
   };
 
-  // Hide workout day from summary
-  const handleHideWorkoutDay = async (day: WorkoutDayType) => {
-    await hideWorkoutDay(day);
-    setHiddenWorkoutDays(prev => [...prev, day]);
-  };
-
-  // Show workout day in summary
-  const handleShowWorkoutDay = async (day: WorkoutDayType) => {
-    await showWorkoutDay(day);
-    setHiddenWorkoutDays(prev => prev.filter(d => d !== day));
-  };
-
   const loadDailyData = async () => {
     try {
       const storedCards = await AsyncStorage.getItem(SUMMARY_CARD_STORAGE_KEY);
+      let cards: string[];
       if (storedCards) {
-        setVisibleCards(JSON.parse(storedCards).map(normalizeCardId));
+        cards = JSON.parse(storedCards).map(normalizeCardId);
       } else {
-        setVisibleCards(DEFAULT_VISIBLE_CARDS.map(normalizeCardId));
+        cards = DEFAULT_VISIBLE_CARDS.map(normalizeCardId);
       }
+
+      // Migration: Ensure DailyWorkout is in the list for existing users
+      if (!cards.includes('DailyWorkout')) {
+        cards = ['DailyWorkout', ...cards];
+        await AsyncStorage.setItem(SUMMARY_CARD_STORAGE_KEY, JSON.stringify(cards));
+      }
+
+      setVisibleCards(cards);
 
       let currentGoal = 500;
       const todayStr = new Date().toDateString();
@@ -427,6 +453,15 @@ export default function SummaryScreen({ navigation }: SummaryScreenProps) {
         });
 
         setWorkoutStats(statsMap);
+
+        // Load Calendar Data
+        const scheduleData = await loadDailySchedule();
+        setCalendarSchedule(scheduleData);
+
+        const eventsStored = await AsyncStorage.getItem('@workout_calendar_events');
+        if (eventsStored) {
+          setCalendarEvents(JSON.parse(eventsStored));
+        }
       }
     } catch (e) {
       console.error('Error loading daily data:', e);
@@ -485,7 +520,8 @@ export default function SummaryScreen({ navigation }: SummaryScreenProps) {
       id === 'WorkoutShortcuts' ||
       id === 'Trends' ||
       id === 'Trends_Grid' ||
-      id === 'ActivityRing'
+      id === 'ActivityRing' ||
+      id === 'DailyWorkout'
     );
   };
 
@@ -582,7 +618,7 @@ export default function SummaryScreen({ navigation }: SummaryScreenProps) {
 
     if (compId === 'Sessions_List') {
       return (
-        <View style={[styles.sectionCard, { backgroundColor: '#1C1C1E' }]}> 
+        <View style={[styles.sectionCard, { backgroundColor: '#1C1C1E' }]}>
           <TouchableOpacity
             style={styles.cardHeaderRow}
             onPress={() => {
@@ -646,8 +682,20 @@ export default function SummaryScreen({ navigation }: SummaryScreenProps) {
       );
     }
 
-    if (compId === 'Sessions_Square') {
-      return renderSquareSessionCard(recentSessions[0]);
+    if (compId === 'DailyWorkout') {
+      return (
+        <DailyWorkoutWidget
+          workoutDay={todaysWorkoutDay || 'LEG DAY'}
+          currentDay={getCurrentDayNumber()}
+          totalDays={7}
+          onPress={() => navigation.navigate('DailyWorkoutDetail', {
+            workoutDay: todaysWorkoutDay || 'LEG DAY',
+            currentDay: getCurrentDayNumber(),
+            totalDays: 7,
+            dailyCalorieGoal: 1000,
+          })}
+        />
+      );
     }
 
     const metrics: { [key: string]: any } = {
@@ -682,7 +730,7 @@ export default function SummaryScreen({ navigation }: SummaryScreenProps) {
                 <View style={styles.activityStats}>
                   <Text style={styles.activityLabel}>Move</Text>
                   <Text>
-                    <Text style={[styles.activityCurrent, { color: MetricColors.energy }]}> 
+                    <Text style={[styles.activityCurrent, { color: MetricColors.energy }]}>
                       {Math.round(dailyCalories)}/{dailyGoal}
                     </Text>
                     <Text style={[styles.activityUnit, { color: MetricColors.energy }]}>KCAL</Text>
@@ -780,10 +828,10 @@ export default function SummaryScreen({ navigation }: SummaryScreenProps) {
       'WorkoutShortcuts': {
         isFull: true,
         render: () => (
-          <View key="workouts-main-section" style={[styles.sectionCard, { backgroundColor: '#1C1C1E', paddingHorizontal: 0, paddingBottom: 8, paddingTop: 8 }]}> 
-            <TouchableOpacity activeOpacity={0.7} onPress={() => { }}> 
-              <Text style={[styles.sectionTitle, { marginHorizontal: 16, marginTop: 4, marginBottom: 12, fontSize: 17 }]}>Workout</Text> 
-            </TouchableOpacity> 
+          <View key="workouts-main-section" style={[styles.sectionCard, { backgroundColor: '#1C1C1E', paddingHorizontal: 0, paddingBottom: 8, paddingTop: 8 }]}>
+            <TouchableOpacity activeOpacity={0.7} onPress={() => { }}>
+              <Text style={[styles.sectionTitle, { marginHorizontal: 16, marginTop: 4, marginBottom: 12, fontSize: 17 }]}>Workout</Text>
+            </TouchableOpacity>
             <View style={{
               flexDirection: 'row',
               flexWrap: 'wrap',
@@ -839,9 +887,9 @@ export default function SummaryScreen({ navigation }: SummaryScreenProps) {
               style={[WorkoutSquareCardStyle.workoutSquareCard, { backgroundColor: '#1C1C1E' }]}
             >
               <Text style={WorkoutSquareCardStyle.workoutSquareHeader}>Workout</Text>
-              <View style={WorkoutSquareCardStyle.workoutSquareIconContainer}> 
+              <View style={WorkoutSquareCardStyle.workoutSquareIconContainer}>
                 <View style={{ justifyContent: 'flex-start' }}>
-                  <View style={WorkoutSquareCardStyle.workoutSquareIconWrapper}> 
+                  <View style={WorkoutSquareCardStyle.workoutSquareIconWrapper}>
                     {SvgIcon && <SvgIcon width={63} height={63} fill="#9DEC2C" />}
                   </View>
                   <Text style={WorkoutSquareCardStyle.workoutSquareName} numberOfLines={1}>{latest?.name || 'Workout'}</Text>
@@ -898,9 +946,9 @@ export default function SummaryScreen({ navigation }: SummaryScreenProps) {
         const workoutId = compId.replace('Workout_', '');
         const workout = allWorkouts.find(w => w.workoutId === workoutId);
         if (!workout) return null;
-        
+
         const SvgIcon = workout.SvgIcon;
-        
+
         // Workout_{workoutId} kartları için IndividualWorkoutCardStyle kullan
         // (Assisted Tricep Dip, T-Bar Row vb. gibi belirli workout kartları)
         // Stiller Modal carousel kartlarıyla aynı ölçülerde
@@ -921,7 +969,7 @@ export default function SummaryScreen({ navigation }: SummaryScreenProps) {
             }]}
           >
             <Text style={IndividualWorkoutCardStyle.individualWorkoutHeader}>Workout</Text>
-            <View style={[IndividualWorkoutCardStyle.individualWorkoutIconContainer, { transform: [{ translateY: -2 }] }]}> 
+            <View style={[IndividualWorkoutCardStyle.individualWorkoutIconContainer, { transform: [{ translateY: -2 }] }]}>
               <View style={{ justifyContent: 'flex-start' }}>
                 <View style={IndividualWorkoutCardStyle.individualWorkoutIconWrapper}>
                   {SvgIcon && <SvgIcon width={77} height={77} fill="#9DEC2C" />}
@@ -951,135 +999,135 @@ export default function SummaryScreen({ navigation }: SummaryScreenProps) {
         let metricLabel = '';
         let color = '#FFF', unit = '', value = '', todayValue = '', chart: number[] = [];
 
-        if (metricId === 'SetCount') { 
-          color = MetricColors.sets; 
-          unit = 'SET'; 
-          value = stats.weeklySets?.toString() || '0'; 
+        if (metricId === 'SetCount') {
+          color = MetricColors.sets;
+          unit = 'SET';
+          value = stats.weeklySets?.toString() || '0';
           todayValue = stats.sets?.toString() || '0';
-          chart = stats.charts?.weeklySets || []; 
-          metricLabel = 'Weekly Sets'; 
+          chart = stats.charts?.weeklySets || [];
+          metricLabel = 'Weekly Sets';
         }
-        else if (metricId === 'StrengthLevel') { 
-          color = MetricColors.weight; 
-          unit = 'KG'; 
-          value = stats.weeklyStrength?.toString() || '0'; 
+        else if (metricId === 'StrengthLevel') {
+          color = MetricColors.weight;
+          unit = 'KG';
+          value = stats.weeklyStrength?.toString() || '0';
           todayValue = stats.strength?.toString() || '0';
-          chart = stats.charts?.weeklyStrength || []; 
-          metricLabel = 'Weekly Strength'; 
+          chart = stats.charts?.weeklyStrength || [];
+          metricLabel = 'Weekly Strength';
         }
-        else if (metricId === 'Cadence') { 
-          color = MetricColors.speed; 
-          unit = 's/r'; 
-          value = stats.weeklyCadence?.toString() || '0'; 
+        else if (metricId === 'Cadence') {
+          color = MetricColors.speed;
+          unit = 's/r';
+          value = stats.weeklyCadence?.toString() || '0';
           todayValue = stats.cadence?.toString() || '0';
-          chart = stats.charts?.weeklyCadence || []; 
-          metricLabel = 'Weekly Cadence'; 
+          chart = stats.charts?.weeklyCadence || [];
+          metricLabel = 'Weekly Cadence';
         }
-        else if (metricId === 'Intensity') { 
-          color = MetricColors.energy; 
-          unit = ''; 
-          value = stats.weeklyIntensity || '0:1'; 
+        else if (metricId === 'Intensity') {
+          color = MetricColors.energy;
+          unit = '';
+          value = stats.weeklyIntensity || '0:1';
           todayValue = stats.intensity || '0:1';
-          chart = stats.charts?.weeklyIntensity || []; 
-          metricLabel = 'Weekly Intensity'; 
+          chart = stats.charts?.weeklyIntensity || [];
+          metricLabel = 'Weekly Intensity';
         }
-        else if (metricId === 'Density') { 
-          color = '#9DEC2C'; 
-          unit = '%'; 
-          value = stats.weeklyDensity?.toString() || '0'; 
+        else if (metricId === 'Density') {
+          color = '#9DEC2C';
+          unit = '%';
+          value = stats.weeklyDensity?.toString() || '0';
           todayValue = stats.density?.toString() || '0';
-          chart = stats.charts?.weeklyDensity || []; 
-          metricLabel = 'Weekly Density'; 
+          chart = stats.charts?.weeklyDensity || [];
+          metricLabel = 'Weekly Density';
         }
-        else if (metricId === 'Balance') { 
-          color = '#D1A3FF'; 
-          unit = '%'; 
-          value = stats.weeklyBalance?.toString() || '0'; 
+        else if (metricId === 'Balance') {
+          color = '#D1A3FF';
+          unit = '%';
+          value = stats.weeklyBalance?.toString() || '0';
           todayValue = stats.balance?.toString() || '0';
-          chart = stats.charts?.weeklyBalance || []; 
-          metricLabel = 'Weekly Balance'; 
+          chart = stats.charts?.weeklyBalance || [];
+          metricLabel = 'Weekly Balance';
         }
-        else if (metricId === 'Consistency') { 
-          color = '#00C7BE'; 
-          unit = '%'; 
-          value = stats.weeklyConsistency?.toString() || '0'; 
+        else if (metricId === 'Consistency') {
+          color = '#00C7BE';
+          unit = '%';
+          value = stats.weeklyConsistency?.toString() || '0';
           todayValue = stats.consistency?.toString() || '0';
-          chart = stats.charts?.weeklyConsistency || []; 
-          metricLabel = 'Weekly Consistency'; 
+          chart = stats.charts?.weeklyConsistency || [];
+          metricLabel = 'Weekly Consistency';
         }
-        else if (metricId === 'Endurance') { 
-          color = MetricColors.duration; 
-          unit = 'MIN'; 
-          value = stats.weeklyEndurance?.toString() || '0'; 
+        else if (metricId === 'Endurance') {
+          color = MetricColors.duration;
+          unit = 'MIN';
+          value = stats.weeklyEndurance?.toString() || '0';
           todayValue = stats.endurance?.toString() || '0';
-          chart = stats.charts?.weeklyEndurance || []; 
-          metricLabel = 'Weekly Endurance'; 
+          chart = stats.charts?.weeklyEndurance || [];
+          metricLabel = 'Weekly Endurance';
         }
-        else if (metricId === 'Energy') { 
-          color = MetricColors.energy; 
-          unit = 'KCAL'; 
-          value = stats.weeklyEnergy?.toString() || '0'; 
+        else if (metricId === 'Energy') {
+          color = MetricColors.energy;
+          unit = 'KCAL';
+          value = stats.weeklyEnergy?.toString() || '0';
           todayValue = stats.energy?.toString() || '0';
-          chart = stats.charts?.weeklyEnergy || []; 
-          metricLabel = 'Weekly Energy'; 
+          chart = stats.charts?.weeklyEnergy || [];
+          metricLabel = 'Weekly Energy';
         }
 
-          // Modal workoutCardFront stili ile aynı: height 171, paddingBottom 6
-          return (
-            <TouchableOpacity
-              key={compId}
-              style={[styles.halfCard, styles.cardFront, { height: 171, paddingTop: 12, paddingBottom: 6, justifyContent: 'space-between' }]}
-              onPress={() => {
-                if (!isEditing) {
-                  navigation.navigate('WorkoutCategoryDetail', {
-                    workoutId: wId,
-                    workoutName: workout.name,
-                    focusMetric: metricId,
-                  });
-                }
-              }}
-              activeOpacity={1}
-              disabled={isEditing}
-            >
-              {/* Header: Icon + Workout Name */}
-              <View style={[styles.cardHeaderRow, { gap: 6, marginLeft: SquareCardMeasurements.workout.headerMarginLeft }]}> 
-                {workout.SvgIcon && <workout.SvgIcon width={25} height={25} fill="#FFF" />}
-                <Text style={[styles.workoutCardTitle]} numberOfLines={1}>{title}</Text>
-              </View>
-              {/* Metric Label */}
-              <Text style={styles.workoutSubLabel}>{metricLabel}</Text>
-              {/* Metric Value */}
-              <View style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: -6 }}>
-                <Text style={[styles.workoutMetricValue, { color }]}>{value}</Text>
-                <Text style={[styles.workoutUnit, { color }]}>{unit}</Text>
-              </View>
-              {/* Weekly Chart with Day Labels */}
-              <View style={styles.workoutChartContainer}>
-                {chart.slice(0, 7).map((val: number, i: number) => {
-                  const weekDays = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-                  const maxVal = Math.max(...chart.slice(0, 7), 1);
-                  const barHeight = (val / maxVal) * 30;
-                  return (
-                    <React.Fragment key={i}>
-                      {i === 0 && (
-                        <View style={{ width: 0.8, height: 42, backgroundColor: '#606166', alignSelf: 'flex-end', marginBottom: 2 }} />
-                      )}
-                      <View style={{ alignItems: 'center', width: '12%', justifyContent: 'flex-end', height: '100%' }}>
-                        <View style={[styles.bar, { width: 6, height: Math.max(barHeight, 3), backgroundColor: color, borderRadius: 3 }]} />
-                        <Text style={{ color: '#FFF', fontSize: 10, marginTop: 4 }}>{weekDays[i]}</Text>
-                      </View>
+        // Modal workoutCardFront stili ile aynı: height 171, paddingBottom 6
+        return (
+          <TouchableOpacity
+            key={compId}
+            style={[styles.halfCard, styles.cardFront, { height: 171, paddingTop: 12, paddingBottom: 6, justifyContent: 'space-between' }]}
+            onPress={() => {
+              if (!isEditing) {
+                navigation.navigate('WorkoutCategoryDetail', {
+                  workoutId: wId,
+                  workoutName: workout.name,
+                  focusMetric: metricId,
+                });
+              }
+            }}
+            activeOpacity={1}
+            disabled={isEditing}
+          >
+            {/* Header: Icon + Workout Name */}
+            <View style={[styles.cardHeaderRow, { gap: 6, marginLeft: SquareCardMeasurements.workout.headerMarginLeft }]}>
+              {workout.SvgIcon && <workout.SvgIcon width={25} height={25} fill="#FFF" />}
+              <Text style={[styles.workoutCardTitle]} numberOfLines={1}>{title}</Text>
+            </View>
+            {/* Metric Label */}
+            <Text style={styles.workoutSubLabel}>{metricLabel}</Text>
+            {/* Metric Value */}
+            <View style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: -6 }}>
+              <Text style={[styles.workoutMetricValue, { color }]}>{value}</Text>
+              <Text style={[styles.workoutUnit, { color }]}>{unit}</Text>
+            </View>
+            {/* Weekly Chart with Day Labels */}
+            <View style={styles.workoutChartContainer}>
+              {chart.slice(0, 7).map((val: number, i: number) => {
+                const weekDays = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+                const maxVal = Math.max(...chart.slice(0, 7), 1);
+                const barHeight = (val / maxVal) * 30;
+                return (
+                  <React.Fragment key={i}>
+                    {i === 0 && (
                       <View style={{ width: 0.8, height: 42, backgroundColor: '#606166', alignSelf: 'flex-end', marginBottom: 2 }} />
-                    </React.Fragment>
-                  );
-                })}
-              </View>
-              {/* Today Footer */}
-              <Text style={styles.workoutTodayFooter}>
-                <Text style={{ color: '#FFF' }}>Today: </Text>
-                <Text style={{ color }}>{todayValue}{unit}</Text>
-              </Text>
-            </TouchableOpacity>
-          );
+                    )}
+                    <View style={{ alignItems: 'center', width: '12%', justifyContent: 'flex-end', height: '100%' }}>
+                      <View style={[styles.bar, { width: 6, height: Math.max(barHeight, 3), backgroundColor: color, borderRadius: 3 }]} />
+                      <Text style={{ color: '#FFF', fontSize: 10, marginTop: 4 }}>{weekDays[i]}</Text>
+                    </View>
+                    <View style={{ width: 0.8, height: 42, backgroundColor: '#606166', alignSelf: 'flex-end', marginBottom: 2 }} />
+                  </React.Fragment>
+                );
+              })}
+            </View>
+            {/* Today Footer */}
+            <Text style={styles.workoutTodayFooter}>
+              <Text style={{ color: '#FFF' }}>Today: </Text>
+              <Text style={{ color }}>{todayValue}{unit}</Text>
+            </Text>
+          </TouchableOpacity>
+        );
       }
 
       return null;
@@ -1098,36 +1146,36 @@ export default function SummaryScreen({ navigation }: SummaryScreenProps) {
           activeOpacity={1}
           disabled={isEditing}
         >
-          <View style={[styles.cardHeaderRow, { paddingRight: 8 }]}> 
+          <View style={[styles.cardHeaderRow, { paddingRight: 8 }]}>
             <Text style={[styles.cardTitle, { fontSize: 17, textTransform: 'none', marginBottom: 0, flex: 1 }]}>{m.title}</Text>
           </View>
           <View style={{ marginTop: 9 }}>
             <Text style={[styles.subLabel, { color: '#FFF', fontSize: 13, marginTop: 4, textTransform: 'none' }]}>Today</Text>
             <View style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: -4 }}>
-              <Text style={[styles.metricValue, { color: m.color, fontSize: 30, fontWeight: '700' }]}> 
+              <Text style={[styles.metricValue, { color: m.color, fontSize: 30, fontWeight: '700' }]}>
                 {m.val}{' '}
                 <Text style={[styles.unit, { fontSize: 20, fontWeight: '700' }]}>{m.unit}</Text>
               </Text>
             </View>
-            <View style={[styles.barChartContainer, { height: 70, marginBottom: 0, marginTop: -2, overflow: 'hidden' }]}> 
-            {chartData.map((val: number, i: number) => {
-              const computedVal = isStrength ? val / 1000 : val;
-              const maxVal = Math.max(...chartData.map((v: number) => isStrength ? v / 1000 : v), 1);
-              const barHeight = (computedVal / maxVal) * (70 * 0.8);
-              return (
-                <View key={i} style={{ width: 3, height: 70, justifyContent: 'flex-end' }}>
-                  <View style={[styles.bar, { height: 70, backgroundColor: '#4A4A4C', position: 'absolute', bottom: 0 }]} />
-                  {val > 0 && <View style={[styles.bar, { height: Math.max(barHeight, 4), backgroundColor: m.color }]} />}
-                </View>
-              );
-            })}
-            <View style={[styles.chartLabelsOverlay, { justifyContent: 'space-between', paddingHorizontal: 0 }]}> 
-              <Text style={styles.chartLabelText}>00</Text>
-              <Text style={styles.chartLabelText}>06</Text>
-              <Text style={styles.chartLabelText}>12</Text>
-              <Text style={styles.chartLabelText}>18</Text>
+            <View style={[styles.barChartContainer, { height: 70, marginBottom: 0, marginTop: -2, overflow: 'hidden' }]}>
+              {chartData.map((val: number, i: number) => {
+                const computedVal = isStrength ? val / 1000 : val;
+                const maxVal = Math.max(...chartData.map((v: number) => isStrength ? v / 1000 : v), 1);
+                const barHeight = (computedVal / maxVal) * (70 * 0.8);
+                return (
+                  <View key={i} style={{ width: 3, height: 70, justifyContent: 'flex-end' }}>
+                    <View style={[styles.bar, { height: 70, backgroundColor: '#4A4A4C', position: 'absolute', bottom: 0 }]} />
+                    {val > 0 && <View style={[styles.bar, { height: Math.max(barHeight, 4), backgroundColor: m.color }]} />}
+                  </View>
+                );
+              })}
+              <View style={[styles.chartLabelsOverlay, { justifyContent: 'space-between', paddingHorizontal: 0 }]}>
+                <Text style={styles.chartLabelText}>00</Text>
+                <Text style={styles.chartLabelText}>06</Text>
+                <Text style={styles.chartLabelText}>12</Text>
+                <Text style={styles.chartLabelText}>18</Text>
+              </View>
             </View>
-          </View>
           </View>
         </TouchableOpacity>
       );
@@ -1139,6 +1187,42 @@ export default function SummaryScreen({ navigation }: SummaryScreenProps) {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
 
+      {/* Header - Outside ScrollView to avoid touch event conflicts */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={isEditing ? () => setAddCardModalVisible(true) : undefined}
+          disabled={!isEditing}
+          activeOpacity={1}
+        >
+          {isEditing ? (
+            <View style={styles.headerIconWrapper}>
+              <MaterialCommunityIcons name="plus" size={28} color="#FFF" />
+            </View>
+          ) : (
+            <View>
+              <Text style={styles.headerTitle}>Summary</Text>
+              <Text style={styles.headerDate}>{formatDate()}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
+        {isEditing ? (
+          <TouchableOpacity
+            style={styles.doneButton}
+            onPress={handleDoneEditing}
+            activeOpacity={1}
+          >
+            <MaterialCommunityIcons name="check" size={24} color="#000" />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.headerRightContainer}>
+            <View style={styles.avatarContainer}>
+              <MaterialCommunityIcons name="account-circle" size={40} color="#555" />
+            </View>
+          </View>
+        )}
+      </View>
+
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={styles.scrollContent}
@@ -1147,106 +1231,61 @@ export default function SummaryScreen({ navigation }: SummaryScreenProps) {
         scrollEventThrottle={16}
         nestedScrollEnabled={true}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={isEditing ? () => setAddCardModalVisible(true) : undefined}
-            disabled={!isEditing}
-            activeOpacity={1}
-          >
-            {isEditing ? (
-              <View style={styles.headerIconWrapper}>
-                <MaterialCommunityIcons name="plus" size={28} color="#FFF" />
-              </View>
-            ) : (
-              <View>
-                <Text style={styles.headerTitle}>Summary</Text>
-                <Text style={styles.headerDate}>{formatDate()}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-
-          {isEditing ? (
-            <TouchableOpacity
-              style={styles.doneButton}
-              onPress={handleDoneEditing}
-              activeOpacity={1}
-            >
-              <MaterialCommunityIcons name="check" size={24} color="#000" />
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.headerRightContainer}>
-              <TouchableOpacity 
-                style={styles.calendarButton}
-                onPress={() => navigation.navigate('WorkoutCalendar', { showMonthView: true, timestamp: Date.now() })}
-              >
-                <Feather name="calendar" size={24} color="#9DEC2C" />
-              </TouchableOpacity>
-              <View style={styles.avatarContainer}>
-                <MaterialCommunityIcons name="account-circle" size={40} color="#555" />
-              </View>
-            </View>
-          )}
+        {/* iOS style Calendar Widget */}
+        <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
+          <CalendarWidget onPress={() => setFullCalendarVisible(true)} />
         </View>
 
-        {/* Today's Workout Day Widget */}
-        {todaysWorkoutDay && !hiddenWorkoutDays.includes(todaysWorkoutDay) && (
-          <View style={{ position: 'relative' }}>
-            {/* Edit mode: Remove button */}
-            {isEditing && (
-              <TouchableOpacity
-                style={{
-                  position: 'absolute',
-                  top: 8,
-                  right: 8,
-                  width: 28,
-                  height: 28,
-                  borderRadius: 14,
-                  backgroundColor: '#FF3B30',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  zIndex: 10,
-                }}
-                onPress={() => handleHideWorkoutDay(todaysWorkoutDay)}
-              >
-                <Feather name="minus" size={18} color="#FFF" />
-              </TouchableOpacity>
-            )}
-            
-            <DailyWorkoutWidget
-              workoutDay={todaysWorkoutDay}
-              currentDay={getCurrentDayNumber()}
-              totalDays={7}
-              onPress={() => navigation.navigate('DailyWorkoutDetail', {
-                workoutDay: todaysWorkoutDay,
-                currentDay: getCurrentDayNumber(),
-                totalDays: 7,
-                dailyCalorieGoal: 1000,
-              })}
+        {/* Fullscreen Calendar Modal */}
+        <Modal
+          visible={fullCalendarVisible}
+          animationType="fade"
+          presentationStyle="fullScreen"
+          onRequestClose={() => setFullCalendarVisible(false)}
+        >
+          <View style={{ flex: 1, backgroundColor: '#000' }}>
+            <View style={{ height: 40 }} />
+            <CollapsibleCalendarCard
+              key={calendarKey}
+              schedule={calendarSchedule}
+              events={calendarEvents}
+              initialViewMode={calendarInitialViewMode}
+              initialSelectedDate={calendarInitialDate}
+              navigation={navigation}
+              onDayPress={(date) => {
+                console.log('Day pressed:', date);
+              }}
+              onEventsChange={async (updatedEvents) => {
+                // Update local events state when events change in the calendar
+                setCalendarEvents(updatedEvents);
+                // Also reload schedule in case workout day was changed
+                const scheduleData = await loadDailySchedule();
+                setCalendarSchedule(scheduleData);
+              }}
+              onFullScreenPress={() => {
+                setFullCalendarVisible(false);
+                // Reset to month view for next normal open
+                setCalendarInitialViewMode('month');
+                setCalendarInitialDate(undefined);
+              }}
             />
+            {/* Close button for safety if card's own back doesn't suffice */}
+            <TouchableOpacity
+              style={{
+                position: 'absolute',
+                top: 50,
+                right: 20,
+                zIndex: 100,
+                backgroundColor: '#1C1C1E',
+                borderRadius: 20,
+                padding: 8
+              }}
+              onPress={() => setFullCalendarVisible(false)}
+            >
+              <Feather name="x" size={20} color="#FFF" />
+            </TouchableOpacity>
           </View>
-        )}
-
-        {/* Edit mode: Show hidden workout days to re-add */}
-        {isEditing && hiddenWorkoutDays.length > 0 && (
-          <TouchableOpacity
-            style={{
-              backgroundColor: '#1C1C1E',
-              borderRadius: 16,
-              padding: 16,
-              marginBottom: 10,
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-            onPress={() => setWorkoutDayModalVisible(true)}
-          >
-            <Feather name="plus-circle" size={22} color="#9DEC2C" />
-            <Text style={{ color: '#9DEC2C', fontSize: 16, fontWeight: '600', marginLeft: 8 }}>
-              Add Workout Day ({hiddenWorkoutDays.length} hidden)
-            </Text>
-          </TouchableOpacity>
-        )}
+        </Modal>
 
         {/* Dynamic Summary Cards */}
         <Sortable.Flex
@@ -1269,7 +1308,7 @@ export default function SummaryScreen({ navigation }: SummaryScreenProps) {
         >
           {normalizedVisibleCardIds
             .filter(id => {
-              if (id === 'Sessions_List' || id === 'WorkoutShortcuts' || id === 'Trends' || id === 'Trends_Grid' || id === 'ActivityRing') return true;
+              if (id === 'Sessions_List' || id === 'WorkoutShortcuts' || id === 'Trends' || id === 'Trends_Grid' || id === 'ActivityRing' || id === 'DailyWorkout') return true;
               if (id === 'Sessions_Square' || id === 'Workout_Square') return true;
               if (id === 'SetCount' || id === 'StrengthLevel') return true;
               return id.includes('_');
@@ -1517,7 +1556,7 @@ export default function SummaryScreen({ navigation }: SummaryScreenProps) {
           <View style={[styles.modalContent, { maxHeight: '90%' }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                {selectedWorkoutForMetrics 
+                {selectedWorkoutForMetrics
                   ? allWorkouts.find(w => w.workoutId === selectedWorkoutForMetrics)?.name || 'Workout'
                   : 'Workout'} Metrics
               </Text>
@@ -1541,7 +1580,7 @@ export default function SummaryScreen({ navigation }: SummaryScreenProps) {
                   { label: 'Balance', value: stats.weeklyBalance || 0, todayValue: stats.balance || 0, unit: '%', color: '#D1A3FF', chart: stats.charts?.weeklyBalance || [] },
                 ];
                 const weekDays = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-                
+
                 return (
                   <View style={{ paddingBottom: 20 }}>
                     {metricsData.map((metric, idx) => {
@@ -1606,53 +1645,182 @@ export default function SummaryScreen({ navigation }: SummaryScreenProps) {
         }}
       />
 
-      {/* Workout Day Re-add Modal */}
+      {/* Workout Event Detail Modal - iOS Calendar Style */}
       <Modal
-        visible={workoutDayModalVisible}
+        visible={workoutEventDetailVisible}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={() => setWorkoutDayModalVisible(false)}
+        onRequestClose={() => setWorkoutEventDetailVisible(false)}
       >
-        <View style={{ flex: 1, backgroundColor: '#000', padding: 16 }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, paddingTop: 20 }}>
-            <Text style={{ color: '#FFF', fontSize: 22, fontWeight: '700' }}>Hidden Workout Days</Text>
-            <TouchableOpacity onPress={() => setWorkoutDayModalVisible(false)}>
-              <Feather name="x" size={28} color="#FFF" />
-            </TouchableOpacity>
-          </View>
-          
-          <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 15, marginBottom: 20 }}>
-            Tap a workout day to show it again in your summary
-          </Text>
-          
-          <ScrollView>
-            {hiddenWorkoutDays.map((day) => (
-              <TouchableOpacity
-                key={day}
-                style={{
-                  backgroundColor: '#1C1C1E',
-                  borderRadius: 12,
-                  padding: 16,
-                  marginBottom: 10,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                }}
-                onPress={() => {
-                  handleShowWorkoutDay(day);
-                  if (hiddenWorkoutDays.length === 1) {
-                    setWorkoutDayModalVisible(false);
-                  }
-                }}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Feather name="calendar" size={22} color="#9DEC2C" />
-                  <Text style={{ color: '#FFF', fontSize: 17, fontWeight: '600', marginLeft: 12 }}>{day}</Text>
+        <View style={{ flex: 1, backgroundColor: '#000' }}>
+          {selectedWorkoutEvent && (
+            <>
+              {/* Header */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 60, paddingBottom: 12 }}>
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', height: 44 }}
+                  onPress={() => setWorkoutEventDetailVisible(false)}
+                >
+                  <Feather name="chevron-left" size={22} color="#FFF" />
+                  <Text style={{ color: '#FFF', fontSize: 17, marginLeft: 4 }}>
+                    {selectedWorkoutEvent.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={{ paddingHorizontal: 16, height: 44, justifyContent: 'center' }}
+                  onPress={() => {
+                    // Edit mode - open calendar to change workout day
+                    setWorkoutEventDetailVisible(false);
+                    setCalendarInitialViewMode('month');
+                    setFullCalendarVisible(true);
+                  }}
+                >
+                  <Text style={{ color: '#007AFF', fontSize: 17 }}>Edit</Text>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={{ flex: 1, paddingHorizontal: 16 }} showsVerticalScrollIndicator={false}>
+                {/* Event Title with color dot */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                  <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: '#FF3B30', marginRight: 12 }} />
+                  <Text style={{ fontSize: 28, fontWeight: '700', color: '#FFF' }}>{selectedWorkoutEvent.workoutDay}</Text>
                 </View>
-                <Feather name="plus-circle" size={24} color="#9DEC2C" />
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+
+                {/* Date & Time */}
+                <Text style={{ fontSize: 15, color: '#8E8E93', marginBottom: 4 }}>
+                  {selectedWorkoutEvent.date.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric', weekday: 'long' })}
+                </Text>
+                <Text style={{ fontSize: 15, color: '#8E8E93', marginBottom: 20 }}>
+                  {selectedWorkoutEvent.startTime} – {selectedWorkoutEvent.endTime}
+                </Text>
+
+                {/* Timeline Block */}
+                <View style={{ backgroundColor: '#1C1C1E', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+                  {['09:00', '10:00', '11:00'].map((time, index) => (
+                    <View key={time} style={{ flexDirection: 'row', alignItems: 'flex-start', height: index === 1 ? 60 : 40 }}>
+                      <Text style={{ color: '#8E8E93', fontSize: 13, width: 50 }}>{time}</Text>
+                      <View style={{ flex: 1, borderTopWidth: 0.5, borderTopColor: '#3A3A3C', marginTop: 8 }}>
+                        {index === 0 && (
+                          <View style={{ backgroundColor: '#FF3B30', borderRadius: 8, padding: 12, marginTop: 8 }}>
+                            <Text style={{ color: '#FFF', fontWeight: '600', fontSize: 15 }}>{selectedWorkoutEvent.workoutDay}</Text>
+                            <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13 }}>{selectedWorkoutEvent.startTime} – {selectedWorkoutEvent.endTime}</Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                  ))}
+                </View>
+
+                {/* Calendar Row */}
+                <TouchableOpacity
+                  style={{ backgroundColor: '#1C1C1E', borderRadius: 12, padding: 16, marginBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+                  onPress={() => {
+                    setWorkoutEventDetailVisible(false);
+                    setCalendarInitialViewMode('month');
+                    setFullCalendarVisible(true);
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={{ width: 32, height: 32, borderRadius: 6, backgroundColor: '#FF3B30', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                      <Feather name="calendar" size={18} color="#FFF" />
+                    </View>
+                    <Text style={{ color: '#FFF', fontSize: 17 }}>Calendar</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#007AFF', marginRight: 8 }} />
+                    <Text style={{ color: '#8E8E93', fontSize: 15, marginRight: 8 }}>Workout Schedule</Text>
+                    <Feather name="chevron-down" size={16} color="#8E8E93" />
+                  </View>
+                </TouchableOpacity>
+
+                {/* Alert Row */}
+                <View style={{ backgroundColor: '#1C1C1E', borderRadius: 12, padding: 16, marginBottom: 12 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <View style={{ width: 32, height: 32, borderRadius: 6, backgroundColor: '#3A3A3C', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                        <Feather name="bell" size={18} color="#FFF" />
+                      </View>
+                      <Text style={{ color: '#FFF', fontSize: 17 }}>Alert</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Text style={{ color: '#8E8E93', fontSize: 15, marginRight: 8 }}>30 minutes before</Text>
+                      <Feather name="chevron-down" size={16} color="#8E8E93" />
+                    </View>
+                  </View>
+
+                  <View style={{ height: 0.5, backgroundColor: '#3A3A3C', marginVertical: 4 }} />
+
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <View style={{ width: 32, height: 32, borderRadius: 6, backgroundColor: '#3A3A3C', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                        <Feather name="bell-off" size={18} color="#FFF" />
+                      </View>
+                      <Text style={{ color: '#FFF', fontSize: 17 }}>Second Alert</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Text style={{ color: '#8E8E93', fontSize: 15, marginRight: 8 }}>None</Text>
+                      <Feather name="chevron-down" size={16} color="#8E8E93" />
+                    </View>
+                  </View>
+                </View>
+
+                {/* Workout Section */}
+                <View style={{ marginTop: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                    <Text style={{ fontSize: 20, fontWeight: '600', color: '#FFF' }}>Workout</Text>
+                    <View style={{ flexDirection: 'row', backgroundColor: '#FF6B5B', borderRadius: 20, overflow: 'hidden' }}>
+                      <TouchableOpacity style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
+                        <Text style={{ color: '#FFF', fontSize: 17, fontWeight: '600' }}>−</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
+                        <Text style={{ color: '#FFF', fontSize: 17, fontWeight: '600' }}>+</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {/* Workout Cards Grid */}
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 12 }}>
+                    {allWorkouts.slice(0, 4).map((workout) => {
+                      const SvgIcon = workout.SvgIcon;
+                      return (
+                        <TouchableOpacity
+                          key={workout.id}
+                          style={{
+                            width: '48%',
+                            backgroundColor: '#2C2C2E',
+                            borderRadius: 16,
+                            padding: 16,
+                            alignItems: 'center',
+                          }}
+                          onPress={() => {
+                            setWorkoutEventDetailVisible(false);
+                            timerContext?.startTimerWithWorkoutSettings(workout.workoutId, workout.name);
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <View style={{
+                            width: 64,
+                            height: 64,
+                            borderRadius: 32,
+                            backgroundColor: 'rgba(255, 107, 91, 0.2)',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            marginBottom: 12
+                          }}>
+                            {SvgIcon && <SvgIcon width={36} height={36} fill="#FF6B5B" />}
+                          </View>
+                          <Text style={{ color: '#FFF', fontSize: 15, fontWeight: '600', textAlign: 'center' }}>{workout.name}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+
+                <View style={{ height: 60 }} />
+              </ScrollView>
+            </>
+          )}
         </View>
       </Modal>
     </View>
@@ -1660,28 +1828,28 @@ export default function SummaryScreen({ navigation }: SummaryScreenProps) {
 }
 
 const styles = StyleSheet.create({
-    cardFront: {
-      // Matches AddSummaryCardModal's cardFront for single grafikli Workout cards
-      top: 0,
-      left: 0,
-      zIndex: 3,
-      position: 'relative',
-      width: '100%',
-      backgroundColor: '#2A292A',
-      borderRadius: 16,
-      paddingHorizontal: 16,
-      paddingTop: 12,
-      paddingBottom: 8,
-      justifyContent: 'space-between',
-      height: 171,
-    },
+  cardFront: {
+    // Matches AddSummaryCardModal's cardFront for single grafikli Workout cards
+    top: 0,
+    left: 0,
+    zIndex: 3,
+    position: 'relative',
+    width: '100%',
+    backgroundColor: '#2A292A',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+    justifyContent: 'space-between',
+    height: 171,
+  },
   container: {
     flex: 1,
     backgroundColor: '#000',
   },
   scrollContent: {
     padding: 16,
-    paddingTop: 44,
+    paddingTop: 0,
     paddingBottom: 100,
   },
   header: {
@@ -1689,6 +1857,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingTop: 44,
+    zIndex: 50,
   },
   gridContainer: {
     position: 'relative',
@@ -1710,14 +1882,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-  },
-  calendarButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: SUMMARY_CARD_BG_COLOR,
-    justifyContent: 'center',
-    alignItems: 'center',
+    pointerEvents: 'auto',
+    zIndex: 50,
   },
   avatarContainer: {
     width: 40,
@@ -2119,15 +2285,15 @@ const TrendSquareCardAnimated = ({ card }: { card: any }) => {
   const fadeAnim = useRef(new RNAnimated.Value(1)).current;
 
   return (
-    <View style={[TrendsSquareCardStyle.trendSquareCard, { height: '100%', backgroundColor: SUMMARY_CARD_BG_COLOR }]}> 
+    <View style={[TrendsSquareCardStyle.trendSquareCard, { height: '100%', backgroundColor: SUMMARY_CARD_BG_COLOR }]}>
       <Text style={TrendsSquareCardStyle.trendSquareHeader}>Trends</Text>
-      <View style={[TrendsSquareCardStyle.trendSquareIconWrapper, { overflow: 'hidden', backgroundColor: '#2A292A' }]}> 
+      <View style={[TrendsSquareCardStyle.trendSquareIconWrapper, { overflow: 'hidden', backgroundColor: '#2A292A' }]}>
         <RNAnimated.View style={{ transform: [{ translateY: slideAnim }], opacity: fadeAnim }}>
           <Feather name="chevron-down" size={48} color={card.color} />
         </RNAnimated.View>
       </View>
       <Text style={TrendsSquareCardStyle.trendSquareLabel}>{card.title}</Text>
-      <Text style={[TrendsSquareCardStyle.trendSquareValue, { color: card.color }]}> 
+      <Text style={[TrendsSquareCardStyle.trendSquareValue, { color: card.color }]}>
         {card.val} {card.unit}
       </Text>
     </View>
@@ -2137,7 +2303,7 @@ const TrendSquareCardAnimated = ({ card }: { card: any }) => {
 
 const TrendGridIconAnimated = ({ color }: { color: string }) => {
   return (
-    <View style={[TrendsSquareCardStyle.trendIconDown, { overflow: 'hidden', backgroundColor: '#2A292A' }]}> 
+    <View style={[TrendsSquareCardStyle.trendIconDown, { overflow: 'hidden', backgroundColor: '#2A292A' }]}>
       <Feather name="chevron-down" size={38} color={color} />
     </View>
   );

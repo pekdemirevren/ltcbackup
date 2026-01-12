@@ -10,8 +10,8 @@ type Props = StackScreenProps<RootStackParamList, 'DailyMoveGoal'>;
 
 export default function DailyMoveGoalScreen({ navigation }: Props) {
   const [goal, setGoal] = useState(500);
-  const intervalRef = React.useRef<NodeJS.Timeout | null>(null);
-  const timeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     loadCurrentGoal();
@@ -24,7 +24,7 @@ export default function DailyMoveGoalScreen({ navigation }: Props) {
         const schedule = JSON.parse(storedSchedule);
         // Use the goal from the first day (Monday) as the baseline, or today's
         if (schedule.length > 0) {
-            setGoal(schedule[0].goal);
+          setGoal(schedule[0].goal);
         }
       }
     } catch (e) {
@@ -34,28 +34,28 @@ export default function DailyMoveGoalScreen({ navigation }: Props) {
 
   const saveGoal = async () => {
     try {
-        // When setting a daily move goal here, we update the entire schedule to this new value
-        const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-        const newSchedule = days.map(day => ({ day, goal }));
-        
-        await AsyncStorage.setItem('moveGoalSchedule', JSON.stringify(newSchedule));
-        
-        // Also clear any temporary override for today since the user is setting a new main goal
-        // Or we could leave it. Let's leave it for now to be safe, or clear it?
-        // If I set a new goal of 600, I expect today to be 600.
-        // So let's clear the override for today.
-        const todayStr = new Date().toDateString();
-        const storedOverride = await AsyncStorage.getItem('dailyMoveGoalOverride');
-        if (storedOverride) {
-            const override = JSON.parse(storedOverride);
-            if (override.date === todayStr) {
-                await AsyncStorage.removeItem('dailyMoveGoalOverride');
-            }
-        }
+      // When setting a daily move goal here, we update the entire schedule to this new value
+      const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+      const newSchedule = days.map(day => ({ day, goal }));
 
-        navigation.goBack();
+      await AsyncStorage.setItem('moveGoalSchedule', JSON.stringify(newSchedule));
+
+      // Also clear any temporary override for today since the user is setting a new main goal
+      // Or we could leave it. Let's leave it for now to be safe, or clear it?
+      // If I set a new goal of 600, I expect today to be 600.
+      // So let's clear the override for today.
+      const todayStr = new Date().toDateString();
+      const storedOverride = await AsyncStorage.getItem('dailyMoveGoalOverride');
+      if (storedOverride) {
+        const override = JSON.parse(storedOverride);
+        if (override.date === todayStr) {
+          await AsyncStorage.removeItem('dailyMoveGoalOverride');
+        }
+      }
+
+      navigation.goBack();
     } catch (e) {
-        console.error('Failed to save goal', e);
+      console.error('Failed to save goal', e);
     }
   };
 
@@ -89,11 +89,11 @@ export default function DailyMoveGoalScreen({ navigation }: Props) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeButton}>
           <Feather name="x" size={24} color="#FFF" />
         </TouchableOpacity>
-        <TouchableOpacity 
-            style={styles.listButton}
-            onPress={() => navigation.navigate('MoveGoalSchedule')}
+        <TouchableOpacity
+          style={styles.listButton}
+          onPress={() => navigation.navigate('MoveGoalSchedule')}
         >
-             <MaterialCommunityIcons name="format-list-bulleted" size={24} color="#FFF" />
+          <MaterialCommunityIcons name="format-list-bulleted" size={24} color="#FFF" />
         </TouchableOpacity>
       </View>
 
@@ -104,8 +104,8 @@ export default function DailyMoveGoalScreen({ navigation }: Props) {
         </Text>
 
         <View style={styles.controlsContainer}>
-          <TouchableOpacity 
-            style={styles.controlButton} 
+          <TouchableOpacity
+            style={styles.controlButton}
             onPressIn={() => startAdjusting(-10)}
             onPressOut={stopAdjusting}
           >
@@ -117,8 +117,8 @@ export default function DailyMoveGoalScreen({ navigation }: Props) {
             <Text style={styles.unitText}>KILOCALORIES/DAY</Text>
           </View>
 
-          <TouchableOpacity 
-            style={styles.controlButton} 
+          <TouchableOpacity
+            style={styles.controlButton}
             onPressIn={() => startAdjusting(10)}
             onPressOut={stopAdjusting}
           >

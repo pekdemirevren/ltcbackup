@@ -34,16 +34,16 @@ export const WorkoutCard: React.FC<WorkoutCardProps> = ({
                 disabled={isEditing}
                 style={WorkoutSquareCardStyle.workoutSquareCard}
             >
-                <Text style={WorkoutSquareCardStyle.workoutSquareCardTitle}>Workout</Text>
+                <Text style={WorkoutSquareCardStyle.workoutSquareHeader}>Workout</Text>
                 {SvgIcon && (
-                    <View style={WorkoutSquareCardStyle.workoutIcon}>
+                    <View style={WorkoutSquareCardStyle.workoutSquareIconWrapper}>
                         <SvgIcon width={135} height={135} fill="#9DEC2C" />
                     </View>
                 )}
-                <Text style={WorkoutSquareCardStyle.workoutName}>
+                <Text style={WorkoutSquareCardStyle.workoutSquareName}>
                     {latest?.name || 'Workout'}
                 </Text>
-                <Text style={WorkoutSquareCardStyle.startWorkoutLabel}>Start Workout</Text>
+                <Text style={WorkoutSquareCardStyle.workoutSquareActionText}>Start Workout</Text>
             </TouchableOpacity>
         );
     }

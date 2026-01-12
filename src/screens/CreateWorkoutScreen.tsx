@@ -9,9 +9,9 @@ import Theme from '../constants/theme';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { TimerContext } from '../contexts/TimerContext';
 import { getStyles } from '../styles/CreateWorkoutScreen.styles';
-import { RootStackParamList } from '../App'; // Assuming RootStackParamList is defined in App.tsx
+import { RootStackParamList } from '../navigation/RootNavigator';
 
-type CreateWorkoutScreenProps = StackScreenProps<RootStackParamList, 'CreateWorkoutScreen'>; // Assuming this screen will be added to RootStackParamList
+type CreateWorkoutScreenProps = StackScreenProps<RootStackParamList, any>; // Using any for screen name since it's not in the list yet
 
 export function CreateWorkoutScreen({ navigation }: CreateWorkoutScreenProps) {
   const { colors, Icons } = useContext(ThemeContext)!;
@@ -39,20 +39,20 @@ export function CreateWorkoutScreen({ navigation }: CreateWorkoutScreenProps) {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Create Workout</Text>
         <TouchableOpacity style={styles.headerIcon}>
-            {/* This icon reference is from old App.js, replace with Theme.Icons or specific one */}
-            <Feather name="bar-chart-2" size={24} color="white" style={{ transform: [{ rotate: '90deg' }]}}/>
+          {/* This icon reference is from old App.js, replace with Theme.Icons or specific one */}
+          <Feather name="bar-chart-2" size={24} color="white" style={{ transform: [{ rotate: '90deg' }] }} />
         </TouchableOpacity>
       </View>
 
       <View style={styles.content}>
         {/* Start Workout Button */}
         <TouchableOpacity onPress={handleQuickStart} activeOpacity={0.9}>
-            <LinearGradient
-                colors={colors.saveButtonGradient}
-                style={[styles.startButton, { shadowColor: colors.time.primary }]}
-            >
-                <Text style={[styles.startButtonText, { color: colors.background }]}>Quick Start</Text>
-            </LinearGradient>
+          <LinearGradient
+            colors={colors.saveButtonGradient}
+            style={[styles.startButton, { shadowColor: colors.time.primary }]}
+          >
+            <Text style={[styles.startButtonText, { color: colors.background }]}>Quick Start</Text>
+          </LinearGradient>
         </TouchableOpacity>
 
         {/* Customize Loop Button */}

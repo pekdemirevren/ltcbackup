@@ -10,6 +10,7 @@ import {
   Dimensions,
   Animated,
   Easing,
+  Modal,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { StackScreenProps } from '@react-navigation/stack';
@@ -64,8 +65,8 @@ interface WorkoutEvent {
 
 export default function CreateWorkoutEventScreen({ navigation, route }: CreateWorkoutEventScreenProps) {
   const themeContext = useContext(ThemeContext);
-  const colors = themeContext?.colors || { 
-    background: '#000', 
+  const colors = themeContext?.colors || {
+    background: '#000',
     text: '#FFF',
     cardBackground: '#1C1C1E',
     valueBackground: '#2C2C2E',
@@ -74,15 +75,42 @@ export default function CreateWorkoutEventScreen({ navigation, route }: CreateWo
   const initialDate = route.params?.date ? new Date(route.params.date) : new Date();
   const editMode = route.params?.editMode || false;
   const editEventId = route.params?.eventId;
+  const routeStartTime = route.params?.startTime;
+  const routeEndTime = route.params?.endTime;
+  const routeWorkoutDay = route.params?.workoutDay as WorkoutDayType | undefined;
+  const routeTitle = route.params?.title;
+
+  // Initialize start and end dates with times from route params if provided
+  const initializeStartDate = () => {
+    const date = new Date(initialDate);
+    if (routeStartTime) {
+      const [hour, min] = routeStartTime.split(':').map(Number);
+      date.setHours(hour, min, 0, 0);
+    }
+    return date;
+  };
+
+  const initializeEndDate = () => {
+    const date = new Date(initialDate);
+    if (routeEndTime) {
+      const [hour, min] = routeEndTime.split(':').map(Number);
+      date.setHours(hour, min, 0, 0);
+    } else {
+      // Default to 1 hour after start
+      date.setHours(date.getHours() + 1);
+    }
+    return date;
+  };
 
   const [eventType, setEventType] = useState<'event' | 'reminder'>('event');
-  const [title, setTitle] = useState('');
-  const [startDate, setStartDate] = useState(initialDate);
-  const [endDate, setEndDate] = useState(new Date(initialDate.getTime() + 60 * 60 * 1000));
+  const [title, setTitle] = useState(routeTitle || '');
+  const [startDate, setStartDate] = useState(initializeStartDate());
+  const [endDate, setEndDate] = useState(initializeEndDate());
   const [repeat, setRepeat] = useState('never');
-  const [selectedWorkoutDay, setSelectedWorkoutDay] = useState<WorkoutDayType>('LEG DAY');
+  const [selectedWorkoutDay, setSelectedWorkoutDay] = useState<WorkoutDayType>(routeWorkoutDay || 'LEG DAY');
   const [isLoading, setIsLoading] = useState(editMode);
-  
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+
   // Load event data if in edit mode
   useEffect(() => {
     console.log('CreateWorkoutEventScreen - editMode:', editMode, 'editEventId:', editEventId);
@@ -123,10 +151,10 @@ export default function CreateWorkoutEventScreen({ navigation, route }: CreateWo
       setIsLoading(false);
     }
   };
-  
+
   // Picker visibility states
   const [activePickerField, setActivePickerField] = useState<'startDate' | 'startTime' | 'endDate' | 'endTime' | 'repeat' | 'workout' | null>(null);
-  
+
   // Animated heights for pickers
   const dateTimePickerHeight = useRef(new Animated.Value(0)).current;
   const workoutPickerHeight = useRef(new Animated.Value(0)).current;
@@ -149,16 +177,16 @@ export default function CreateWorkoutEventScreen({ navigation, route }: CreateWo
   // Generate repeated events based on repeat option
   const generateRepeatedEvents = (baseEvent: WorkoutEvent, repeatType: string): WorkoutEvent[] => {
     const events: WorkoutEvent[] = [baseEvent];
-    
+
     if (repeatType === 'never') return events;
-    
+
     const baseDate = new Date(baseEvent.date);
     const endRepeatDate = new Date(baseDate);
     endRepeatDate.setFullYear(endRepeatDate.getFullYear() + 1); // Repeat for 1 year
-    
+
     let currentDate = new Date(baseDate);
     let counter = 1;
-    
+
     while (currentDate < endRepeatDate && counter < 365) {
       switch (repeatType) {
         case 'daily':
@@ -179,9 +207,9 @@ export default function CreateWorkoutEventScreen({ navigation, route }: CreateWo
         default:
           return events;
       }
-      
+
       if (currentDate >= endRepeatDate) break;
-      
+
       const repeatedEvent: WorkoutEvent = {
         ...baseEvent,
         id: `event_${Date.now()}_${counter}`,
@@ -190,7 +218,7 @@ export default function CreateWorkoutEventScreen({ navigation, route }: CreateWo
       events.push(repeatedEvent);
       counter++;
     }
-    
+
     return events;
   };
 
@@ -219,7 +247,7 @@ export default function CreateWorkoutEventScreen({ navigation, route }: CreateWo
         const allEvents = generateRepeatedEvents(newEvent, repeat);
         events = [...events, ...allEvents];
       }
-      
+
       await AsyncStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(events));
 
       navigation.goBack();
@@ -228,18 +256,54 @@ export default function CreateWorkoutEventScreen({ navigation, route }: CreateWo
     }
   };
 
-  const handleDelete = async () => {
+  const handleDeleteThisEventOnly = async () => {
     if (!editEventId) return;
-    
+
     try {
       const stored = await AsyncStorage.getItem(EVENTS_STORAGE_KEY);
       let events: WorkoutEvent[] = stored ? JSON.parse(stored) : [];
       events = events.filter(e => e.id !== editEventId);
       await AsyncStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(events));
+      setShowDeleteModal(false);
       navigation.goBack();
     } catch (error) {
       console.error('Error deleting event:', error);
     }
+  };
+
+  const handleDeleteAllFutureEvents = async () => {
+    if (!editEventId) return;
+
+    try {
+      const stored = await AsyncStorage.getItem(EVENTS_STORAGE_KEY);
+      let events: WorkoutEvent[] = stored ? JSON.parse(stored) : [];
+      
+      // Find the current event to get its date and workout day
+      const currentEvent = events.find(e => e.id === editEventId);
+      if (currentEvent) {
+        const currentDate = new Date(currentEvent.date);
+        // Delete this event and all future events with the same workout day
+        events = events.filter(e => {
+          if (e.id === editEventId) return false;
+          if (e.workoutDay === currentEvent.workoutDay) {
+            const eventDate = new Date(e.date);
+            if (eventDate >= currentDate) return false;
+          }
+          return true;
+        });
+      }
+      
+      await AsyncStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(events));
+      setShowDeleteModal(false);
+      navigation.goBack();
+    } catch (error) {
+      console.error('Error deleting events:', error);
+    }
+  };
+
+  const handleDelete = () => {
+    if (!editEventId) return;
+    setShowDeleteModal(true);
   };
 
   // Toggle picker animation
@@ -253,7 +317,7 @@ export default function CreateWorkoutEventScreen({ navigation, route }: CreateWo
         useNativeDriver: false,
       }).start();
     }
-    
+
     if (activePickerField === field) {
       // Close picker
       setActivePickerField(null);
@@ -278,7 +342,7 @@ export default function CreateWorkoutEventScreen({ navigation, route }: CreateWo
 
   const toggleWorkoutPicker = () => {
     const isOpen = activePickerField === 'workout';
-    
+
     // Close datetime picker if open
     if (activePickerField && activePickerField !== 'workout') {
       Animated.timing(dateTimePickerHeight, {
@@ -288,7 +352,7 @@ export default function CreateWorkoutEventScreen({ navigation, route }: CreateWo
         useNativeDriver: false,
       }).start();
     }
-    
+
     if (isOpen) {
       setActivePickerField(null);
       Animated.timing(workoutPickerHeight, {
@@ -315,20 +379,20 @@ export default function CreateWorkoutEventScreen({ navigation, route }: CreateWo
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     const daysInMonth = lastDay.getDate();
-    
+
     let startDayOfWeek = firstDay.getDay() - 1;
     if (startDayOfWeek < 0) startDayOfWeek = 6;
-    
+
     const days: (Date | null)[] = [];
-    
+
     for (let i = 0; i < startDayOfWeek; i++) {
       days.push(null);
     }
-    
+
     for (let i = 1; i <= daysInMonth; i++) {
       days.push(new Date(year, month, i));
     }
-    
+
     return days;
   };
 
@@ -369,7 +433,7 @@ export default function CreateWorkoutEventScreen({ navigation, route }: CreateWo
 
   const renderCalendarPicker = (isStart: boolean) => {
     const targetDate = isStart ? startDate : endDate;
-    
+
     return (
       <View style={styles.calendarContainer}>
         {/* Month Navigation */}
@@ -392,7 +456,7 @@ export default function CreateWorkoutEventScreen({ navigation, route }: CreateWo
             <Feather name="chevron-right" size={20} color="#007AFF" />
           </TouchableOpacity>
         </View>
-        
+
         {/* Weekday headers */}
         <View style={styles.weekdayHeader}>
           {WEEKDAYS.map((day, index) => (
@@ -404,18 +468,18 @@ export default function CreateWorkoutEventScreen({ navigation, route }: CreateWo
             </Text>
           ))}
         </View>
-        
+
         {/* Days grid */}
         <View style={styles.daysGrid}>
           {calendarDays.map((day, index) => {
             if (!day) {
               return <View key={`empty-${index}`} style={styles.dayCell} />;
             }
-            
+
             const dayOfWeek = day.getDay();
             const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
             const selected = isDateSelected(day, targetDate);
-            
+
             return (
               <TouchableOpacity
                 key={day.toISOString()}
@@ -446,7 +510,7 @@ export default function CreateWorkoutEventScreen({ navigation, route }: CreateWo
   const renderTimePicker = (isStart: boolean) => {
     const targetDate = isStart ? startDate : endDate;
     const setTargetDate = isStart ? setStartDate : setEndDate;
-    
+
     return (
       <View style={styles.timePickerContainer}>
         <Picker
@@ -485,22 +549,22 @@ export default function CreateWorkoutEventScreen({ navigation, route }: CreateWo
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle="light-content" backgroundColor={colors.background} />
-      
+
       {/* Full Modal Container - iOS Calendar style */}
       <View style={styles.modalContainer}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={handleCancel} style={styles.headerButton}>
-            <Feather name="x" size={24} color="#8E8E93" />
+          <TouchableOpacity onPress={handleCancel} style={styles.circularIconButton}>
+            <Feather name="x" size={24} color="#FFF" />
           </TouchableOpacity>
-          
-          <Text style={styles.headerTitle}>{editMode ? 'Edit Event' : 'New Event'}</Text>
-          
-          <TouchableOpacity onPress={handleAdd} style={styles.addButton}>
-            <Feather name="check" size={20} color="#FFF" />
+
+          <Text style={styles.headerTitle}>{editMode ? 'Edit Workout' : 'New Workout'}</Text>
+
+          <TouchableOpacity onPress={handleAdd} style={styles.circularAddButton}>
+            <Feather name="check" size={24} color="#FFF" />
           </TouchableOpacity>
         </View>
-        
+
         {/* Event/Reminder Toggle */}
         <View style={styles.toggleContainer}>
           <TouchableOpacity
@@ -520,34 +584,33 @@ export default function CreateWorkoutEventScreen({ navigation, route }: CreateWo
             </Text>
           </TouchableOpacity>
         </View>
-        
+
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          {/* Title Input */}
-          <View style={styles.inputCard}>
+          {/* Main Attributes Card (Title + Workout Type) */}
+          <View style={[styles.inputCard, activePickerField === 'workout' && styles.cardExpanded]}>
             <TextInput
               style={styles.titleInput}
               placeholder="Title"
               placeholderTextColor="#8E8E93"
               value={title}
               onChangeText={setTitle}
+              autoFocus={true}
             />
-          </View>
-          
-          {/* Workout Type Row */}
-          <TouchableOpacity
-            style={[styles.inputCard, activePickerField === 'workout' && styles.cardExpanded]}
-            onPress={toggleWorkoutPicker}
-            activeOpacity={0.8}
-          >
-            <View style={styles.rowContent}>
-              <Text style={styles.rowLabel}>Workout Type</Text>
-              <View style={styles.rowValueContainer}>
-                <Text style={styles.rowValue}>{selectedWorkoutDay}</Text>
-                <Feather name="chevron-right" size={18} color="#8E8E93" />
+            <View style={styles.separator} />
+            <TouchableOpacity
+              onPress={toggleWorkoutPicker}
+              activeOpacity={0.8}
+            >
+              <View style={styles.rowContent}>
+                <Text style={styles.rowLabel}>Workout Type</Text>
+                <View style={styles.rowValueContainer}>
+                  <Text style={styles.rowValue}>{selectedWorkoutDay}</Text>
+                  <Feather name="chevron-right" size={18} color="#8E8E93" />
+                </View>
               </View>
-            </View>
-          </TouchableOpacity>
-          
+            </TouchableOpacity>
+          </View>
+
           {/* Workout Picker */}
           <Animated.View style={[styles.pickerWrapper, { height: workoutPickerHeight }]}>
             <Picker
@@ -561,14 +624,14 @@ export default function CreateWorkoutEventScreen({ navigation, route }: CreateWo
               ))}
             </Picker>
           </Animated.View>
-          
+
           {/* Date/Time Container */}
           <View style={styles.dateTimeCard}>
             {/* Starts Row */}
             <View style={styles.dateTimeRow}>
               <Text style={styles.dateTimeLabel}>Starts</Text>
               <View style={styles.dateTimeValues}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={[styles.datePill, activePickerField === 'startDate' && styles.pillActive]}
                   onPress={() => toggleDateTimePicker('startDate')}
                 >
@@ -576,7 +639,7 @@ export default function CreateWorkoutEventScreen({ navigation, route }: CreateWo
                     {formatDateShort(startDate)}
                   </Text>
                 </TouchableOpacity>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={[styles.timePill, activePickerField === 'startTime' && styles.timePillActive]}
                   onPress={() => toggleDateTimePicker('startTime')}
                 >
@@ -586,21 +649,21 @@ export default function CreateWorkoutEventScreen({ navigation, route }: CreateWo
                 </TouchableOpacity>
               </View>
             </View>
-            
+
             {/* Start Date/Time Picker */}
             {(activePickerField === 'startDate' || activePickerField === 'startTime') && (
               <Animated.View style={[styles.inlinePicker, { height: dateTimePickerHeight }]}>
                 {activePickerField === 'startDate' ? renderCalendarPicker(true) : renderTimePicker(true)}
               </Animated.View>
             )}
-            
+
             <View style={styles.separator} />
-            
+
             {/* Ends Row */}
             <View style={styles.dateTimeRow}>
               <Text style={styles.dateTimeLabel}>Ends</Text>
               <View style={styles.dateTimeValues}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={[styles.datePill, activePickerField === 'endDate' && styles.pillActive]}
                   onPress={() => toggleDateTimePicker('endDate')}
                 >
@@ -608,7 +671,7 @@ export default function CreateWorkoutEventScreen({ navigation, route }: CreateWo
                     {formatDateShort(endDate)}
                   </Text>
                 </TouchableOpacity>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={[styles.timePill, activePickerField === 'endTime' && styles.timePillActive]}
                   onPress={() => toggleDateTimePicker('endTime')}
                 >
@@ -618,19 +681,19 @@ export default function CreateWorkoutEventScreen({ navigation, route }: CreateWo
                 </TouchableOpacity>
               </View>
             </View>
-            
+
             {/* End Date/Time Picker */}
             {(activePickerField === 'endDate' || activePickerField === 'endTime') && (
               <Animated.View style={[styles.inlinePicker, { height: dateTimePickerHeight }]}>
                 {activePickerField === 'endDate' ? renderCalendarPicker(false) : renderTimePicker(false)}
               </Animated.View>
             )}
-            
+
             <View style={styles.separator} />
-            
+
             {/* Repeat Row */}
-            <TouchableOpacity 
-              style={styles.dateTimeRow}
+            <TouchableOpacity
+              style={[styles.dateTimeRow, { marginTop: 8 }]}
               onPress={() => toggleDateTimePicker('repeat')}
             >
               <Text style={styles.dateTimeLabel}>Repeat</Text>
@@ -641,7 +704,7 @@ export default function CreateWorkoutEventScreen({ navigation, route }: CreateWo
                 <Feather name="chevron-right" size={18} color="#8E8E93" />
               </View>
             </TouchableOpacity>
-            
+
             {/* Repeat Picker */}
             {activePickerField === 'repeat' && (
               <Animated.View style={[styles.inlinePicker, { height: dateTimePickerHeight }]}>
@@ -658,23 +721,62 @@ export default function CreateWorkoutEventScreen({ navigation, route }: CreateWo
               </Animated.View>
             )}
           </View>
-          
+
           {/* Delete Button - only in edit mode */}
           {editMode && (
             <TouchableOpacity onPress={handleDelete} style={styles.deleteButton} activeOpacity={0.9}>
               <Feather name="trash-2" size={18} color="#FF3B30" />
-              <Text style={styles.deleteButtonText}>Delete Event</Text>
+              <Text style={styles.deleteButtonText}>Delete Workout</Text>
             </TouchableOpacity>
           )}
-          
+
           <View style={{ height: 120 }} />
         </ScrollView>
-        
+
         {/* Add/Update Event Button */}
         <TouchableOpacity onPress={handleAdd} style={styles.addEventButton} activeOpacity={0.9}>
-          <Text style={styles.addEventButtonText}>{editMode ? 'Update Event' : 'Add Event'}</Text>
+          <Text style={styles.addEventButtonText}>{editMode ? 'Update Workout' : 'Add Workout'}</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        visible={showDeleteModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowDeleteModal(false)}
+      >
+        <TouchableOpacity 
+          style={styles.deleteModalOverlay} 
+          activeOpacity={1} 
+          onPress={() => setShowDeleteModal(false)}
+        >
+          <View style={styles.deleteModalContent}>
+            <Text style={styles.deleteModalTitle}>
+              Are you sure you want to delete this event?
+              {repeat !== 'never' ? ' This is a repeating event.' : ''}
+            </Text>
+            
+            <TouchableOpacity 
+              style={styles.deleteModalButton} 
+              onPress={handleDeleteThisEventOnly}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.deleteModalButtonText}>Delete This Event Only</Text>
+            </TouchableOpacity>
+            
+            {repeat !== 'never' && (
+              <TouchableOpacity 
+                style={styles.deleteModalButton} 
+                onPress={handleDeleteAllFutureEvents}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.deleteModalButtonText}>Delete All Future Events</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -686,11 +788,11 @@ const styles = StyleSheet.create({
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: '#2C2C2E',
+    backgroundColor: '#1C1C1E',
     marginHorizontal: 0,
-    marginTop: 50,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    marginTop: 20, // Increased height
+    borderTopLeftRadius: 40, // Increased radius
+    borderTopRightRadius: 40, // Increased radius
     overflow: 'hidden',
   },
   header: {
@@ -701,30 +803,36 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 12,
   },
-  headerButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   headerTitle: {
     fontSize: 17,
     fontWeight: '600',
     color: '#FFF',
   },
-  addButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#FF3B30',
+  circularIconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.1)',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 0.8,
+    borderColor: 'rgba(255,255,255,0.18)',
+  },
+  circularAddButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.1)', // Match X button
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 0.8,
+    borderColor: 'rgba(255,255,255,0.18)',
   },
   toggleContainer: {
     flexDirection: 'row',
     marginHorizontal: 16,
     backgroundColor: '#3A3A3C',
-    borderRadius: 10,
+    borderRadius: 16, // Increased radius
     padding: 3,
     marginBottom: 16,
   },
@@ -750,8 +858,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   inputCard: {
-    backgroundColor: '#3A3A3C',
-    borderRadius: 12,
+    backgroundColor: '#2C2C2E', // Lighter tone
+    borderRadius: 24, // Increased radius
     marginBottom: 12,
     paddingHorizontal: 16,
   },
@@ -782,10 +890,10 @@ const styles = StyleSheet.create({
   },
   rowValue: {
     fontSize: 16,
-    color: '#8E8E93',
+    color: '#FFFFFF', // Synced with rowLabel
   },
   activeRowValue: {
-    color: '#007AFF',
+    color: '#FFFFFF',
   },
   // Picker Wrapper
   pickerWrapper: {
@@ -803,19 +911,21 @@ const styles = StyleSheet.create({
   },
   // Date/Time Card
   dateTimeCard: {
-    backgroundColor: '#3A3A3C',
-    borderRadius: 12,
+    backgroundColor: '#2C2C2E', // Lighter tone
+    borderRadius: 24, // Increased radius
     paddingHorizontal: 16,
-    marginBottom: 12,
+    paddingTop: 8, // Added for balance
+    paddingBottom: 16, // Increased for balance (Repeat is at bottom)
+    marginBottom: 0,
   },
   dateTimeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
+    paddingVertical: 8, // Further reduced
   },
   dateTimeLabel: {
-    fontSize: 16,
+    fontSize: 17,
     color: '#FFF',
   },
   dateTimeValues: {
@@ -824,27 +934,27 @@ const styles = StyleSheet.create({
   },
   datePill: {
     backgroundColor: 'rgba(120,120,128,0.24)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 16, // Increased radius
   },
   datePillText: {
-    fontSize: 15,
-    color: '#007AFF',
+    fontSize: 17, // Increased by 1 (Total +2 from original)
+    color: '#FFFFFF', // Synced with labels
     fontWeight: '500',
   },
   timePill: {
     backgroundColor: 'rgba(120,120,128,0.24)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 16, // Increased radius
   },
   timePillActive: {
     backgroundColor: 'rgba(255,149,0,0.3)',
   },
   timePillText: {
-    fontSize: 15,
-    color: '#FF9500',
+    fontSize: 17, // Increased by 1 (Total +2 from original)
+    color: '#FFFFFF', // Synced with labels
     fontWeight: '500',
   },
   pillActive: {
@@ -854,8 +964,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   separator: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: '#38383A',
+    height: 1, // More prominent
+    backgroundColor: '#48484A', // More distinct
     marginLeft: 0,
   },
   inlinePicker: {
@@ -947,10 +1057,10 @@ const styles = StyleSheet.create({
     right: 16,
     height: 54,
     borderRadius: 27,
-    backgroundColor: '#FF9500',
+    backgroundColor: '#34C759', // Green as requested
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#FF9500',
+    shadowColor: '#34C759',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -978,5 +1088,45 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,
+  },
+  // Delete Confirmation Modal Styles
+  deleteModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  deleteModalContent: {
+    backgroundColor: '#2C2C2E',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 320,
+    borderWidth: 0.8,
+    borderColor: 'rgba(255,255,255,0.18)',
+  },
+  deleteModalTitle: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '500',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 22,
+  },
+  deleteModalButton: {
+    backgroundColor: 'rgba(255, 59, 48, 0.1)',
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 59, 48, 0.3)',
+  },
+  deleteModalButtonText: {
+    color: '#FF3B30',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });

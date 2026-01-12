@@ -160,7 +160,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       {/* Top Back Button */}
       <View style={styles.topBackButton}>
         <TouchableOpacity onPress={handleBack} style={[styles.backButton, { backgroundColor: colors.backButtonBackground }]}>
-          <Theme.Icons.back.lib name={Theme.Icons.back.name} size={32} color={colors.text} />
+          <Theme.Icons.back.lib width={32} height={32} color={colors.text} />
         </TouchableOpacity>
       </View>
 
@@ -177,7 +177,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             <Text style={[styles.cardTitle, { color: '#e5e5e5' }]}>Loop</Text>
           </View>
           <TouchableOpacity style={[styles.playIconContainer, { backgroundColor: colors.quickStart.primary }]} onPress={() => startTimerWithCurrentSettings && startTimerWithCurrentSettings(false)} activeOpacity={0.7}>
-            <Theme.Icons.play.lib size={33} color={colors.playIconText} />
+            <Theme.Icons.play.lib width={33} height={33} color={colors.playIconText} />
           </TouchableOpacity>
         </TouchableOpacity>
 
@@ -188,7 +188,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             <Text style={[styles.cardTitle, { color: '#e5e5e5' }]}>Time</Text>
           </View>
           <TouchableOpacity style={[styles.playIconContainer, { backgroundColor: colors.time.primary }]} onPress={() => startTimerWithCurrentSettings(true)} activeOpacity={0.7}>
-            <Theme.Icons.play.lib size={33} color={colors.playIconText} />
+            <Theme.Icons.play.lib width={33} height={33} color={colors.playIconText} />
           </TouchableOpacity>
         </TouchableOpacity>
 
@@ -199,7 +199,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             <Text style={[styles.cardTitle, { color: '#e5e5e5' }]}>Speed</Text>
           </View>
           <TouchableOpacity style={[styles.playIconContainer, { backgroundColor: colors.speed.primary }]} onPress={() => startTimerWithCurrentSettings(true)} activeOpacity={0.7}>
-            <Theme.Icons.play.lib size={33} color={colors.playIconText} />
+            <Theme.Icons.play.lib width={33} height={33} color={colors.playIconText} />
           </TouchableOpacity>
         </TouchableOpacity>
 
@@ -210,7 +210,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             <Text style={[styles.cardTitle, { color: '#e5e5e5' }]}>Lap</Text>
           </View>
           <TouchableOpacity style={[styles.playIconContainer, { backgroundColor: colors.lap.primary }]} onPress={() => startTimerWithCurrentSettings(true)} activeOpacity={0.7}>
-            <Theme.Icons.play.lib size={33} color={colors.playIconText} />
+            <Theme.Icons.play.lib width={33} height={33} color={colors.playIconText} />
           </TouchableOpacity>
         </TouchableOpacity>
 
@@ -253,7 +253,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 <Text style={[styles.cardTitle, { color: '#e5e5e5' }]}>Loop</Text>
               </View>
               <TouchableOpacity style={[styles.playIconContainer, { backgroundColor: colors.quickStart.primary }]} onPress={() => startTimerWithCurrentSettings(false)} activeOpacity={0.7}>
-                <Theme.Icons.play.lib size={33} color={colors.playIconText} />
+                <Theme.Icons.play.lib width={33} height={33} color={colors.playIconText} />
               </TouchableOpacity>
             </TouchableOpacity>
             {/* Time Card (modal) */}
@@ -263,7 +263,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 <Text style={[styles.cardTitle, { color: '#e5e5e5' }]}>Time</Text>
               </View>
               <TouchableOpacity style={[styles.playIconContainer, { backgroundColor: colors.time.primary }]} onPress={() => startTimerWithCurrentSettings(true)} activeOpacity={0.7}>
-                <Theme.Icons.play.lib size={33} color={colors.playIconText} />
+                <Theme.Icons.play.lib width={33} height={33} color={colors.playIconText} />
               </TouchableOpacity>
             </TouchableOpacity>
             {/* Speed Card (modal) */}
@@ -273,7 +273,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 <Text style={[styles.cardTitle, { color: '#e5e5e5' }]}>Speed</Text>
               </View>
               <TouchableOpacity style={[styles.playIconContainer, { backgroundColor: colors.speed.primary }]} onPress={() => startTimerWithCurrentSettings(true)} activeOpacity={0.7}>
-                <Theme.Icons.play.lib size={33} color={colors.playIconText} />
+                <Theme.Icons.play.lib width={33} height={33} color={colors.playIconText} />
               </TouchableOpacity>
             </TouchableOpacity>
             {/* Lap Card (modal) */}
@@ -283,7 +283,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 <Text style={[styles.cardTitle, { color: '#e5e5e5' }]}>Lap</Text>
               </View>
               <TouchableOpacity style={[styles.playIconContainer, { backgroundColor: colors.lap.primary }]} onPress={() => startTimerWithCurrentSettings(true)} activeOpacity={0.7}>
-                <Theme.Icons.play.lib size={33} color={colors.playIconText} />
+                <Theme.Icons.play.lib width={33} height={33} color={colors.playIconText} />
               </TouchableOpacity>
             </TouchableOpacity>
             {/* Close button - top left corner */}

@@ -118,7 +118,18 @@ export default function EventDetailScreen({ navigation, route }: EventDetailScre
   const getTimelineHours = (): number[] => {
     if (!event) return [9, 10, 11];
     const startHour = parseInt(event.startTime.split(':')[0]);
-    return [startHour - 1, startHour, startHour + 1];
+    const endHour = parseInt(event.endTime.split(':')[0]);
+    
+    // Show hours from start to end + 1, ensuring at least 3 hours
+    const hours: number[] = [];
+    for (let h = startHour; h <= endHour + 1; h++) {
+      hours.push(h);
+    }
+    // Ensure at least 3 hours for good visual
+    while (hours.length < 3 && hours[hours.length - 1] < 23) {
+      hours.push(hours[hours.length - 1] + 1);
+    }
+    return hours;
   };
 
   if (isLoading) {
@@ -145,6 +156,28 @@ export default function EventDetailScreen({ navigation, route }: EventDetailScre
   const eventDate = new Date(event.date);
   const timelineHours = getTimelineHours();
   const eventColor = WORKOUT_DAY_COLORS[event.workoutDay] || '#007AFF';
+
+  const HOUR_HEIGHT = 80; // Height for one hour slot in pixels
+
+  const getMinutesFromTime = (time: string) => {
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours * 60 + minutes;
+  };
+
+  const eventStartTotalMinutes = getMinutesFromTime(event.startTime);
+  const eventEndTotalMinutes = getMinutesFromTime(event.endTime);
+  const durationMinutes = eventEndTotalMinutes > eventStartTotalMinutes 
+    ? eventEndTotalMinutes - eventStartTotalMinutes 
+    : 0;
+
+  const firstHourInTimeline = timelineHours[0] || 0;
+  
+  // Calculate minutes from the start of the timeline view
+  const eventStartOffsetMinutes = eventStartTotalMinutes - firstHourInTimeline * 60;
+
+  const eventTopPosition = (eventStartOffsetMinutes / 60) * HOUR_HEIGHT;
+  const eventHeight = (durationMinutes / 60) * HOUR_HEIGHT;
+
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -173,31 +206,37 @@ export default function EventDetailScreen({ navigation, route }: EventDetailScre
         <Text style={styles.eventTime}>{event.startTime} – {event.endTime}</Text>
         
         {/* Mini Timeline */}
-        <View style={styles.timelineContainer}>
-          {timelineHours.map((hour, index) => {
-            const hourStr = String(hour).padStart(2, '0');
-            const startHour = parseInt(event.startTime.split(':')[0]);
-            const isEventHour = hour === startHour;
-            
-            return (
-              <View key={hour} style={styles.timelineRow}>
-                <Text style={styles.timelineHour}>{hourStr}:00</Text>
-                <View style={styles.timelineLine}>
-                  {isEventHour && (
-                    <View style={[styles.timelineEvent, { backgroundColor: eventColor }]}>
-                      <Text style={styles.timelineEventTitle}>{event.title}</Text>
-                      <View style={styles.timelineEventTimeRow}>
-                        <Feather name="clock" size={12} color="rgba(255,255,255,0.7)" />
-                        <Text style={styles.timelineEventTime}>
-                          {event.startTime} – {event.endTime}
-                        </Text>
-                      </View>
-                    </View>
-                  )}
-                </View>
+        <View style={styles.timelineWrapper}>
+          {/* Background lines and hour labels */}
+          {timelineHours.map((hour) => (
+            <View key={hour} style={[styles.timelineRow, { height: HOUR_HEIGHT }]}>
+              <Text style={styles.timelineHourText}>
+                {String(hour).padStart(2, '0')}:00
+              </Text>
+              <View style={styles.timelineSeparator} />
+            </View>
+          ))}
+
+          {/* Event */}
+          {eventHeight > 0 && (
+            <View
+              style={[
+                styles.timelineEvent,
+                {
+                  backgroundColor: eventColor,
+                  top: eventTopPosition + 10, // + timelineWrapper paddingVertical
+                  height: eventHeight,
+                },
+              ]}>
+              <Text style={styles.timelineEventTitle} numberOfLines={1}>{event.title}</Text>
+              <View style={styles.timelineEventTimeRow}>
+                <Feather name="clock" size={12} color="rgba(255,255,255,0.7)" />
+                <Text style={styles.timelineEventTime}>
+                  {event.startTime} – {event.endTime}
+                </Text>
               </View>
-            );
-          })}
+            </View>
+          )}
         </View>
         
         {/* Calendar Info */}
@@ -313,33 +352,37 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 24,
   },
-  timelineContainer: {
+  timelineWrapper: {
     backgroundColor: '#1C1C1E',
     borderRadius: 12,
-    padding: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
     marginBottom: 16,
+    position: 'relative',
   },
   timelineRow: {
     flexDirection: 'row',
-    minHeight: 50,
+    alignItems: 'flex-start', // Align to top so hours mark the start of each slot
   },
-  timelineHour: {
-    width: 50,
+  timelineHourText: {
     color: '#8E8E93',
     fontSize: 12,
+    width: 50,
+    marginTop: -6, // Offset to align with the separator line
   },
-  timelineLine: {
+  timelineSeparator: {
     flex: 1,
-    borderLeftWidth: StyleSheet.hairlineWidth,
-    borderLeftColor: '#3A3A3C',
-    paddingLeft: 12,
-    minHeight: 50,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#3A3A3C',
+    marginLeft: 10,
   },
   timelineEvent: {
-    backgroundColor: '#6B9BD2',
+    position: 'absolute',
+    left: 16 + 50 + 10, // wrapper paddingH + text width + separator margin
+    right: 16, // wrapper paddingH
     borderRadius: 6,
     padding: 10,
-    marginRight: 8,
+    zIndex: 1,
   },
   timelineEventTitle: {
     color: '#FFF',

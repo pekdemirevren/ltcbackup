@@ -1,37 +1,18 @@
-import React, { useRef, useEffect } from 'react';
-import LottieView from 'lottie-react-native';
-import { ViewStyle } from 'react-native';
+// This component is deprecated - lottie-react-native is not installed
+// Use SVG icons instead
+
+import React from 'react';
+import { View, ViewStyle } from 'react-native';
 
 interface LottieIconProps {
-  source: any; // JSON animasyon dosyası
+  source: any;
   size: number;
   autoPlay?: boolean;
   loop?: boolean;
   style?: ViewStyle;
 }
 
-export const LottieIcon: React.FC<LottieIconProps> = ({
-  source,
-  size,
-  autoPlay = true,
-  loop = true,
-  style,
-}) => {
-  const animationRef = useRef<LottieView>(null);
-
-  useEffect(() => {
-    if (autoPlay && animationRef.current) {
-      animationRef.current.play();
-    }
-  }, [autoPlay]);
-
-  return (
-    <LottieView
-      ref={animationRef}
-      source={source}
-      autoPlay={autoPlay}
-      loop={loop}
-      style={[{ width: size, height: size }, style]}
-    />
-  );
+// Placeholder component - returns empty view
+export const LottieIcon: React.FC<LottieIconProps> = ({ size, style }) => {
+  return <View style={[{ width: size, height: size }, style]} />;
 };

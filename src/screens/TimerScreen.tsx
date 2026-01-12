@@ -513,8 +513,8 @@ export function TimerScreen({ route, navigation }: TimerScreenNavigationProps) {
               saveWorkoutSummary(currentSetCount, currentRepCount).then(() => {
                 // Navigate to summary screen
                 navigation.navigate('WorkoutSummaryScreen', {
-                  workoutId: workoutId,
-                  workoutName: workoutName
+                  workoutId: workoutId || '',
+                  workoutName: workoutName || ''
                 });
               });
 
@@ -842,7 +842,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-     paddingTop: 150,
+    paddingTop: 150,
   },
   timerDigits: {
     flexDirection: 'row',

@@ -30,9 +30,14 @@ const PIE_COLORS = [COLORS.c1, COLORS.c2, COLORS.c3, COLORS.c4, COLORS.c5, COLOR
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
+import { RootStackParamList } from '../navigation/RootNavigator';
+import { StackScreenProps } from '@react-navigation/stack';
+
 type TimeFrame = 'W' | 'M' | 'Y' | 'ALL';
 
-export default function EnergyTrendScreen({ navigation }) {
+type EnergyTrendScreenProps = StackScreenProps<RootStackParamList, 'EnergyTrend'>;
+
+export default function EnergyTrendScreen({ navigation }: EnergyTrendScreenProps) {
   const [selectedFrame, setSelectedFrame] = useState<TimeFrame>('W');
   const [pieData, setPieData] = useState<any[]>([]);
   const [topMuscle, setTopMuscle] = useState('None');

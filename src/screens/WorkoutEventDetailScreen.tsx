@@ -11,6 +11,8 @@ import {
   Modal,
   TouchableWithoutFeedback,
   Animated,
+  Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { StackScreenProps } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/RootNavigator';
@@ -23,6 +25,8 @@ import { WorkoutDayType, WORKOUT_DAY_COLORS, loadWorkoutDayCards } from '../util
 import { allWorkouts, Workout } from '../constants/workoutData';
 import { LiquidGlassCard, LiquidGlassMenuItem } from '../components/LiquidGlass';
 import MetricColors from '../constants/MetricColors';
+import RNCalendarEvents, { Calendar } from 'react-native-calendar-events';
+import notifee, { AuthorizationStatus } from '@notifee/react-native';
 
 type WorkoutEventDetailScreenProps = StackScreenProps<RootStackParamList, 'WorkoutEventDetail'>;
 
@@ -57,6 +61,28 @@ const ALERT_OPTIONS = [
   { label: '1 week before', value: 10080 },
 ];
 
+// App's internal calendar identifier
+const APP_CALENDAR_ID = 'app_internal_calendar';
+const APP_CALENDAR = {
+  id: APP_CALENDAR_ID,
+  title: 'App Calendar',
+  color: '#007AFF',
+  source: 'Workout App',
+};
+
+// Calendar color mapping for different calendar sources
+const getCalendarIcon = (source: string): string => {
+  const sourceMap: { [key: string]: string } = {
+    'icloud': 'cloud',
+    'gmail': 'mail',
+    'exchange': 'briefcase',
+    'caldav': 'server',
+    'local': 'calendar',
+    'subscribed': 'rss',
+  };
+  return sourceMap[source.toLowerCase()] || 'calendar';
+};
+
 export default function WorkoutEventDetailScreen({ navigation, route }: WorkoutEventDetailScreenProps) {
   const themeContext = useContext(ThemeContext);
   const colors = themeContext?.colors || { background: '#000', text: '#FFF' };
@@ -67,6 +93,11 @@ export default function WorkoutEventDetailScreen({ navigation, route }: WorkoutE
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [showAlertPicker, setShowAlertPicker] = useState(false);
   const [showSecondAlertPicker, setShowSecondAlertPicker] = useState(false);
+  const [showCalendarPicker, setShowCalendarPicker] = useState(false);
+  const [deviceCalendars, setDeviceCalendars] = useState<Calendar[]>([]);
+  const [calendarPermission, setCalendarPermission] = useState<string>('undetermined');
+  const [loadingCalendars, setLoadingCalendars] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState<AuthorizationStatus | null>(null);
 
   // Menu state
   const [showMenu, setShowMenu] = useState(false);
@@ -75,9 +106,124 @@ export default function WorkoutEventDetailScreen({ navigation, route }: WorkoutE
   const buttonRef = useRef<View>(null);
   const menuAnimation = useRef(new Animated.Value(0)).current;
 
+  // Request calendar permission and load calendars
+  const requestCalendarAccess = async () => {
+    setLoadingCalendars(true);
+    try {
+      // Check current permission status
+      const authStatus = await RNCalendarEvents.checkPermissions();
+      
+      if (authStatus === 'authorized') {
+        setCalendarPermission('authorized');
+        await loadDeviceCalendars();
+      } else if (authStatus === 'denied') {
+        setCalendarPermission('denied');
+        Alert.alert(
+          'Calendar Access Denied',
+          'You need to grant permission from Settings to access your calendars.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => {
+              // On iOS, this will open the app settings
+              if (Platform.OS === 'ios') {
+                Alert.alert('Go to Settings > Privacy > Calendars and enable this app.');
+              }
+            }}
+          ]
+        );
+      } else {
+        // Request permission
+        const requestedAuth = await RNCalendarEvents.requestPermissions();
+        setCalendarPermission(requestedAuth);
+        
+        if (requestedAuth === 'authorized') {
+          await loadDeviceCalendars();
+        }
+      }
+    } catch (error) {
+      console.error('Calendar permission error:', error);
+      Alert.alert('Error', 'An error occurred while checking calendar permissions.');
+    } finally {
+      setLoadingCalendars(false);
+    }
+  };
+
+  const loadDeviceCalendars = async () => {
+    try {
+      const calendars = await RNCalendarEvents.findCalendars();
+      // Filter only calendars that allow modifications
+      const writableCalendars = calendars.filter(cal => cal.allowsModifications);
+      setDeviceCalendars(writableCalendars);
+    } catch (error) {
+      console.error('Error loading calendars:', error);
+    }
+  };
+
+  // Request notification permission for alerts
+  const requestNotificationPermission = async (): Promise<boolean> => {
+    try {
+      const settings = await notifee.requestPermission();
+      setNotificationPermission(settings.authorizationStatus);
+      
+      if (settings.authorizationStatus === AuthorizationStatus.DENIED) {
+        Alert.alert(
+          'Notification Permission Required',
+          'You need to grant notification permission for reminders. You can enable notifications from Settings.',
+          [
+            { text: 'OK', style: 'cancel' },
+            { 
+              text: 'Open Settings', 
+              onPress: () => notifee.openNotificationSettings()
+            }
+          ]
+        );
+        return false;
+      }
+      
+      return settings.authorizationStatus >= AuthorizationStatus.AUTHORIZED;
+    } catch (error) {
+      console.error('Notification permission error:', error);
+      return false;
+    }
+  };
+
+  // Check notification permission on mount
+  const checkNotificationPermission = async () => {
+    try {
+      const settings = await notifee.getNotificationSettings();
+      setNotificationPermission(settings.authorizationStatus);
+    } catch (error) {
+      console.error('Error checking notification permission:', error);
+    }
+  };
+
+  // Handle back navigation (both button and swipe gesture)
+  const navigateBackToCalendar = useCallback(() => {
+    navigation.navigate('Main', {
+      screen: 'Summary',
+      params: {
+        screen: 'SummaryOverview',
+        params: { openCalendar: true, selectedDate: date }
+      }
+    } as any);
+  }, [navigation, date]);
+
+  // Listen for back gesture/hardware back
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      // Prevent default behavior
+      e.preventDefault();
+      // Navigate back to calendar with day view
+      navigateBackToCalendar();
+    });
+
+    return unsubscribe;
+  }, [navigation, navigateBackToCalendar]);
+
   useFocusEffect(
     useCallback(() => {
       loadEvent();
+      checkNotificationPermission();
     }, [eventId])
   );
 
@@ -205,7 +351,16 @@ export default function WorkoutEventDetailScreen({ navigation, route }: WorkoutE
     );
   };
 
-  const handleAlertChange = (minutes: number) => {
+  const handleAlertChange = async (minutes: number) => {
+    // Request notification permission if setting an alert (not "None")
+    if (minutes >= 0) {
+      const hasPermission = await requestNotificationPermission();
+      if (!hasPermission) {
+        setShowAlertPicker(false);
+        return;
+      }
+    }
+    
     if (event) {
       const updatedEvent = { ...event, alertMinutes: minutes };
       saveEvent(updatedEvent);
@@ -213,12 +368,52 @@ export default function WorkoutEventDetailScreen({ navigation, route }: WorkoutE
     setShowAlertPicker(false);
   };
 
-  const handleSecondAlertChange = (minutes: number) => {
+  const handleSecondAlertChange = async (minutes: number) => {
+    // Request notification permission if setting an alert (not "None")
+    if (minutes >= 0) {
+      const hasPermission = await requestNotificationPermission();
+      if (!hasPermission) {
+        setShowSecondAlertPicker(false);
+        return;
+      }
+    }
+    
     if (event) {
       const updatedEvent = { ...event, secondAlertMinutes: minutes };
       saveEvent(updatedEvent);
     }
     setShowSecondAlertPicker(false);
+  };
+
+  const handleCalendarChange = async (calendarValue: string) => {
+    // If selecting a device calendar (not app calendar), ensure we have permission
+    if (calendarValue !== APP_CALENDAR_ID) {
+      const authStatus = await RNCalendarEvents.checkPermissions();
+      if (authStatus !== 'authorized') {
+        const requestedAuth = await RNCalendarEvents.requestPermissions();
+        if (requestedAuth !== 'authorized') {
+          Alert.alert(
+            'Calendar Permission Required',
+            'You need to grant calendar access permission to use this calendar.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Open Settings', onPress: () => {
+                if (Platform.OS === 'ios') {
+                  Alert.alert('Go to Settings > Privacy > Calendars and enable this app.');
+                }
+              }}
+            ]
+          );
+          return;
+        }
+      }
+    }
+    
+    if (event) {
+      const updatedEvent = { ...event, calendar: calendarValue };
+      saveEvent(updatedEvent);
+    }
+    setShowCalendarPicker(false);
   };
 
   const getAlertLabel = (minutes: number): string => {
@@ -302,11 +497,44 @@ export default function WorkoutEventDetailScreen({ navigation, route }: WorkoutE
 
   const eventColor = WORKOUT_DAY_COLORS[event.workoutDay] || '#4A90D9';
 
-  // Generate time slots for the timeline
+  // Generate time slots for the timeline - dynamic based on event duration
   const startHour = parseInt(event.startTime.split(':')[0]);
-  const timeSlots = [startHour - 1, startHour, startHour + 1].map(h => 
-    `${String(h).padStart(2, '0')}:00`
-  );
+  const startMin = parseInt(event.startTime.split(':')[1]);
+  const endHour = parseInt(event.endTime.split(':')[0]);
+  const endMin = parseInt(event.endTime.split(':')[1]);
+  
+  // Show hours from one hour before start to one hour after end (minimum 3 hours)
+  const hoursToShow: number[] = [];
+  const displayStartHour = Math.max(0, startHour);
+  const displayEndHour = Math.min(23, endHour + 1);
+  for (let h = displayStartHour; h <= displayEndHour; h++) {
+    hoursToShow.push(h);
+  }
+  // Ensure at least 3 hours are shown
+  while (hoursToShow.length < 3) {
+    const lastHour = hoursToShow[hoursToShow.length - 1];
+    if (lastHour < 23) {
+      hoursToShow.push(lastHour + 1);
+    } else {
+      break;
+    }
+  }
+  
+  // Calculate event position - each hour slot is 60px for better visibility
+  const HOUR_HEIGHT = 60;
+  const VERTICAL_PADDING = 16; // Equal top and bottom padding
+  const firstHour = hoursToShow[0];
+  
+  // Calculate minutes from the start of timeline to event start
+  const eventStartTotalMinutes = startHour * 60 + startMin;
+  const timelineStartMinutes = firstHour * 60;
+  const offsetMinutes = eventStartTotalMinutes - timelineStartMinutes;
+  const eventTop = (offsetMinutes / 60) * HOUR_HEIGHT;
+  
+  // Calculate event height based on duration (minimum 30px for very short events)
+  const durationMinutes = (endHour - startHour) * 60 + (endMin - startMin);
+  const calculatedHeight = (durationMinutes / 60) * HOUR_HEIGHT;
+  const eventHeight = Math.max(30, calculatedHeight);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -314,13 +542,25 @@ export default function WorkoutEventDetailScreen({ navigation, route }: WorkoutE
       
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Feather name="chevron-left" size={24} color="#FFF" />
+        <TouchableOpacity 
+          style={styles.circularIconButton} 
+          onPress={navigateBackToCalendar}
+        >
+          <Feather name="chevron-left" size={22} color="#FFF" />
           <Text style={styles.backButtonText}>{formatHeaderDate(event.date)}</Text>
         </TouchableOpacity>
         
-        <TouchableOpacity style={styles.editButton}>
-          <Text style={styles.editButtonText}>Edit</Text>
+        <TouchableOpacity 
+          style={styles.circularIconButton}
+          onPress={() => navigation.navigate('CreateWorkoutEvent', { 
+            date: event.date, 
+            editMode: true, 
+            eventId: event.id,
+            startTime: event.startTime,
+            endTime: event.endTime 
+          })}
+        >
+          <Feather name="edit-2" size={18} color="#FFF" />
         </TouchableOpacity>
       </View>
       
@@ -332,38 +572,67 @@ export default function WorkoutEventDetailScreen({ navigation, route }: WorkoutE
         <Text style={styles.dateText}>{formatDate(event.date)}</Text>
         <Text style={styles.timeText}>{event.startTime} – {event.endTime}</Text>
         
-        {/* Timeline Block */}
-        <View style={styles.timelineContainer}>
-          {timeSlots.map((time, index) => {
-            const hour = parseInt(time.split(':')[0]);
-            const isEventSlot = hour === startHour;
-            
+        {/* Timeline Block - iOS Calendar style with 3 time slots */}
+        <View style={[styles.timelineContainer, { paddingTop: VERTICAL_PADDING, paddingBottom: 0 }]}>
+          {/* Hour Rows */}
+          {hoursToShow.map((hour, index) => {
+            const isLastRow = index === hoursToShow.length - 1;
             return (
-              <View key={time} style={styles.timeSlot}>
-                <Text style={styles.timeLabel}>{time}</Text>
-                <View style={styles.timeSlotContent}>
-                  {isEventSlot && (
-                    <View style={[styles.eventBlock, { backgroundColor: eventColor }]}>
-                      <Text style={styles.eventBlockTitle}>{event.title}</Text>
-                      <View style={styles.eventBlockTimeRow}>
-                        <Feather name="clock" size={12} color="#FFF" />
-                        <Text style={styles.eventBlockTime}>{event.startTime} – {event.endTime}</Text>
-                      </View>
-                    </View>
-                  )}
-                </View>
+              <View key={`${hour}-${index}`} style={[styles.hourRow, { height: isLastRow ? VERTICAL_PADDING : HOUR_HEIGHT }]}>
+                <Text style={styles.hourLabel}>{String(hour).padStart(2, '0')}:00</Text>
+                <View style={styles.hourSeparator} />
               </View>
             );
           })}
+          
+          {/* Event Card - Absolutely positioned based on actual time */}
+          <View style={[
+            styles.eventBlock,
+            {
+              backgroundColor: eventColor,
+              position: 'absolute',
+              left: 66,
+              right: 16,
+              top: VERTICAL_PADDING + eventTop,
+              height: eventHeight, // Height scales with duration
+            }
+          ]}>
+            <Text style={styles.eventBlockTitle}>{event.title}</Text>
+            <Text style={styles.eventBlockTime}>{event.startTime} – {event.endTime}</Text>
+          </View>
         </View>
         
         {/* Calendar Row */}
-        <TouchableOpacity style={styles.settingRow}>
+        <TouchableOpacity 
+          style={styles.settingRow}
+          onPress={async () => {
+            setShowCalendarPicker(true);
+            // Load device calendars in background
+            if (deviceCalendars.length === 0) {
+              await requestCalendarAccess();
+            }
+          }}
+        >
           <Text style={styles.settingLabel}>Calendar</Text>
           <View style={styles.settingValueRow}>
-            <View style={[styles.calendarDot, { backgroundColor: '#007AFF' }]} />
-            <Text style={styles.settingValue}>{event.calendar || 'pekdemirevren@gmail.com'}</Text>
-            <Feather name="chevron-down" size={16} color="#8E8E93" />
+            {loadingCalendars ? (
+              <ActivityIndicator size="small" color="#8E8E93" />
+            ) : (
+              <>
+                <View style={[styles.calendarDot, { 
+                  backgroundColor: event.calendar === APP_CALENDAR_ID 
+                    ? APP_CALENDAR.color 
+                    : deviceCalendars.find(c => c.id === event.calendar)?.color || APP_CALENDAR.color 
+                }]} />
+                <Text style={styles.settingValue}>
+                  {event.calendar === APP_CALENDAR_ID || !event.calendar
+                    ? APP_CALENDAR.title 
+                    : deviceCalendars.find(c => c.id === event.calendar)?.title || APP_CALENDAR.title
+                  }
+                </Text>
+                <Feather name="chevron-down" size={16} color="#8E8E93" />
+              </>
+            )}
           </View>
         </TouchableOpacity>
         
@@ -532,6 +801,113 @@ export default function WorkoutEventDetailScreen({ navigation, route }: WorkoutE
         </TouchableOpacity>
       )}
 
+      {/* Calendar Picker Modal */}
+      {showCalendarPicker && (
+        <TouchableOpacity 
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowCalendarPicker(false)}
+        >
+          <View style={styles.alertPickerContainer}>
+            <View style={styles.alertPickerHeader}>
+              <Text style={styles.alertPickerTitle}>Calendar</Text>
+              <TouchableOpacity onPress={() => setShowCalendarPicker(false)}>
+                <Text style={styles.alertPickerDone}>Done</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.alertPickerList}>
+              {/* App Calendar - Always available as first option */}
+              <TouchableOpacity
+                key={APP_CALENDAR_ID}
+                style={[
+                  styles.alertOption,
+                  (!event.calendar || event.calendar === APP_CALENDAR_ID) && styles.alertOptionSelected
+                ]}
+                onPress={() => handleCalendarChange(APP_CALENDAR_ID)}
+              >
+                <View style={styles.calendarOptionRow}>
+                  <View style={[styles.calendarOptionDot, { backgroundColor: APP_CALENDAR.color }]} />
+                  <Feather 
+                    name="smartphone" 
+                    size={18} 
+                    color={APP_CALENDAR.color} 
+                    style={{ marginRight: 10 }} 
+                  />
+                  <View style={styles.calendarOptionInfo}>
+                    <Text style={[
+                      styles.alertOptionText,
+                      (!event.calendar || event.calendar === APP_CALENDAR_ID) && styles.alertOptionTextSelected
+                    ]}>
+                      {APP_CALENDAR.title}
+                    </Text>
+                    <Text style={styles.calendarSourceText}>{APP_CALENDAR.source}</Text>
+                  </View>
+                </View>
+                {(!event.calendar || event.calendar === APP_CALENDAR_ID) && (
+                  <Feather name="check" size={20} color="#007AFF" />
+                )}
+              </TouchableOpacity>
+
+              {/* Section header for device calendars */}
+              <View style={styles.calendarSectionHeader}>
+                <Text style={styles.calendarSectionTitle}>Device Calendars</Text>
+                {loadingCalendars && <ActivityIndicator size="small" color="#8E8E93" style={{ marginLeft: 8 }} />}
+              </View>
+
+              {/* Loading state */}
+              {loadingCalendars && deviceCalendars.length === 0 && (
+                <View style={styles.loadingCalendarsContainer}>
+                  <Text style={styles.loadingCalendarsText}>Loading calendars...</Text>
+                </View>
+              )}
+
+              {/* No calendars found */}
+              {!loadingCalendars && deviceCalendars.length === 0 && (
+                <View style={styles.noCalendarsContainer}>
+                  <Feather name="calendar" size={32} color="#8E8E93" />
+                  <Text style={styles.noCalendarsText}>No calendars found</Text>
+                  <Text style={styles.noCalendarsSubtext}>No accessible calendars on your device</Text>
+                </View>
+              )}
+
+              {/* Device calendars list */}
+              {deviceCalendars.map((calendar) => (
+                <TouchableOpacity
+                  key={calendar.id}
+                  style={[
+                    styles.alertOption,
+                    event.calendar === calendar.id && styles.alertOptionSelected
+                  ]}
+                  onPress={() => handleCalendarChange(calendar.id)}
+                >
+                  <View style={styles.calendarOptionRow}>
+                    <View style={[styles.calendarOptionDot, { backgroundColor: calendar.color }]} />
+                    <Feather 
+                      name={getCalendarIcon(calendar.source) as any} 
+                      size={18} 
+                      color={calendar.color} 
+                      style={{ marginRight: 10 }} 
+                    />
+                    <View style={styles.calendarOptionInfo}>
+                      <Text style={[
+                        styles.alertOptionText,
+                        event.calendar === calendar.id && styles.alertOptionTextSelected
+                      ]}>
+                        {calendar.title}
+                      </Text>
+                      <Text style={styles.calendarSourceText}>{calendar.source}</Text>
+                    </View>
+                  </View>
+                  {event.calendar === calendar.id && (
+                    <Feather name="check" size={20} color="#007AFF" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      )}
+
       {/* Menu Modal */}
       <Modal
         transparent
@@ -595,27 +971,18 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 12,
   },
-  backButton: {
+  circularIconButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#2C2C2E',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    height: 44,
+    paddingHorizontal: 16,
     borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 0.8,
+    borderColor: 'rgba(255,255,255,0.18)',
+    gap: 4,
   },
   backButtonText: {
-    color: '#FFF',
-    fontSize: 17,
-    fontWeight: '500',
-    marginLeft: 4,
-  },
-  editButton: {
-    backgroundColor: '#2C2C2E',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 22,
-  },
-  editButtonText: {
     color: '#FFF',
     fontSize: 17,
     fontWeight: '500',
@@ -645,45 +1012,41 @@ const styles = StyleSheet.create({
   timelineContainer: {
     backgroundColor: '#1C1C1E',
     borderRadius: 16,
-    padding: 16,
+    paddingHorizontal: 16,
     marginBottom: 16,
+    position: 'relative',
   },
-  timeSlot: {
+  hourRow: {
     flexDirection: 'row',
-    minHeight: 44,
+    alignItems: 'flex-start', // Align to top so hours mark the start of each slot
   },
-  timeLabel: {
+  hourLabel: {
     width: 50,
-    fontSize: 14,
+    fontSize: 13,
     color: '#8E8E93',
     fontWeight: '500',
+    marginTop: -6, // Offset to align with the separator line
   },
-  timeSlotContent: {
+  hourSeparator: {
     flex: 1,
-    borderTopWidth: 0.5,
-    borderTopColor: '#3A3A3C',
-    paddingVertical: 4,
+    height: 0.5,
+    backgroundColor: '#3A3A3C',
   },
   eventBlock: {
     borderRadius: 8,
-    padding: 10,
-    marginLeft: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    justifyContent: 'center',
   },
   eventBlockTitle: {
     fontSize: 14,
     fontWeight: '600',
     color: '#FFF',
   },
-  eventBlockTimeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-    gap: 4,
-  },
   eventBlockTime: {
     fontSize: 12,
-    color: '#FFF',
-    opacity: 0.9,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 2,
   },
   // Setting Rows
   settingRow: {
@@ -714,6 +1077,83 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 5,
   },
+  calendarOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  calendarOptionDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 10,
+  },
+  calendarOptionInfo: {
+    flex: 1,
+  },
+  calendarSourceText: {
+    fontSize: 12,
+    color: '#8E8E93',
+    marginTop: 2,
+  },
+  noCalendarsContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  noCalendarsText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFF',
+    marginTop: 16,
+  },
+  noCalendarsSubtext: {
+    fontSize: 14,
+    color: '#8E8E93',
+    marginTop: 4,
+  },
+  calendarSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#3A3A3C',
+    marginTop: 8,
+  },
+  calendarSectionTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#8E8E93',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  loadingCalendarsContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+  },
+  loadingCalendarsText: {
+    fontSize: 14,
+    color: '#8E8E93',
+    marginTop: 8,
+  },
+  loadCalendarsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    marginHorizontal: 16,
+    marginTop: 8,
+    borderRadius: 12,
+    backgroundColor: '#2C2C2E',
+  },
+  loadCalendarsText: {
+    fontSize: 15,
+    color: '#007AFF',
+    fontWeight: '500',
+  },
   // Workout Section
   workoutSection: {
     backgroundColor: '#1C1C1E',
@@ -736,10 +1176,11 @@ const styles = StyleSheet.create({
   workoutGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    justifyContent: 'space-between',
     gap: 12,
   },
   workoutCard: {
-    width: (SCREEN_WIDTH - 32 - 16 - 24) / 2,
+    width: '48%',
     backgroundColor: '#2C2C2E',
     borderRadius: 12,
     padding: 16,
