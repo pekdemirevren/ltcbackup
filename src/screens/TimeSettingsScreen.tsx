@@ -9,7 +9,9 @@ import {
   Platform,
   Easing,
   StatusBar,
+  StyleSheet,
 } from 'react-native';
+import { BlurView } from '@react-native-community/blur';
 import { Picker } from '@react-native-picker/picker';
 import { StackScreenProps } from '@react-navigation/stack';
 
@@ -121,21 +123,46 @@ export function TimeSettingsScreen({ route, navigation }: TimeSettingsScreenProp
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Green Loop Time Card */}
         <TouchableOpacity
-          style={[styles.card, { backgroundColor: colors.cardBackground }]}
+          style={[
+            styles.card,
+            {
+              backgroundColor: 'transparent',
+              borderWidth: 1,
+              borderColor: 'rgba(255,255,255,0.1)',
+              overflow: 'hidden',
+              paddingVertical: 16,
+              borderRadius: isGreenPickerVisible ? 42 : 42,
+              borderBottomLeftRadius: isGreenPickerVisible ? 0 : 42,
+              borderBottomRightRadius: isGreenPickerVisible ? 0 : 42,
+              marginBottom: isGreenPickerVisible ? 0 : 12,
+            }
+          ]}
           onPress={() => togglePicker('greenTime')}
           activeOpacity={0.8}
         >
+          <BlurView
+            style={StyleSheet.absoluteFill}
+            blurType="thinMaterialDark"
+            blurAmount={20}
+            reducedTransparencyFallbackColor="black"
+          />
           <View style={styles.iconContainer}>
             <LoopIcon width={32} height={32} color={colors.time.primary} />
           </View>
           <Text style={styles.cardTitle}>Workout Time</Text>
-          <View style={[styles.valueContainer, { backgroundColor: colors.valueBackground }]}>
+          <View style={[styles.valueContainer, { backgroundColor: colors.valueBackground, borderRadius: 12 }]}>
             <Text style={[styles.valueText, { color: isGreenPickerVisible ? colors.time.primary : colors.text }]}>{greenTime}sec</Text>
           </View>
         </TouchableOpacity>
 
         {/* Açılır/Kapanır Green Picker Alanı */}
-        <Animated.View style={[styles.pickerWrapper, { height: greenPickerHeight }]}>
+        <Animated.View style={[styles.pickerWrapper, { height: greenPickerHeight, backgroundColor: 'transparent', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderTopWidth: 0, marginTop: -1, marginBottom: isGreenPickerVisible ? 12 : 0, borderRadius: 42, borderTopLeftRadius: 0, borderTopRightRadius: 0 }]}>
+          <BlurView
+            style={StyleSheet.absoluteFill}
+            blurType="thinMaterialDark"
+            blurAmount={20}
+            reducedTransparencyFallbackColor="black"
+          />
           <Picker
             selectedValue={greenTime}
             onValueChange={handleGreenTimeChange}
@@ -150,21 +177,46 @@ export function TimeSettingsScreen({ route, navigation }: TimeSettingsScreenProp
 
         {/* Red Loop Time Card */}
         <TouchableOpacity
-          style={[styles.card, { backgroundColor: colors.cardBackground }]}
+          style={[
+            styles.card,
+            {
+              backgroundColor: 'transparent',
+              borderWidth: 1,
+              borderColor: 'rgba(255,255,255,0.1)',
+              overflow: 'hidden',
+              paddingVertical: 16,
+              borderRadius: isRedPickerVisible ? 42 : 42,
+              borderBottomLeftRadius: isRedPickerVisible ? 0 : 42,
+              borderBottomRightRadius: isRedPickerVisible ? 0 : 42,
+              marginBottom: isRedPickerVisible ? 0 : 12,
+            }
+          ]}
           onPress={() => togglePicker('redTime')}
           activeOpacity={0.8}
         >
+          <BlurView
+            style={StyleSheet.absoluteFill}
+            blurType="thinMaterialDark"
+            blurAmount={20}
+            reducedTransparencyFallbackColor="black"
+          />
           <View style={styles.iconContainer}>
             <TimeIcon width={32} height={32} color={colors.time.primary} />
           </View>
           <Text style={styles.cardTitle}>Break Time</Text>
-          <View style={[styles.valueContainer, { backgroundColor: colors.valueBackground }]}>
+          <View style={[styles.valueContainer, { backgroundColor: colors.valueBackground, borderRadius: 12 }]}>
             <Text style={[styles.valueText, { color: isRedPickerVisible ? colors.time.primary : colors.text }]}>{redTime}sec</Text>
           </View>
         </TouchableOpacity>
 
         {/* Açılır/Kapanır Red Picker Alanı */}
-        <Animated.View style={[styles.pickerWrapper, { height: redPickerHeight }]}>
+        <Animated.View style={[styles.pickerWrapper, { height: redPickerHeight, backgroundColor: 'transparent', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderTopWidth: 0, marginTop: -1, marginBottom: isRedPickerVisible ? 12 : 0, borderRadius: 42, borderTopLeftRadius: 0, borderTopRightRadius: 0 }]}>
+          <BlurView
+            style={StyleSheet.absoluteFill}
+            blurType="thinMaterialDark"
+            blurAmount={20}
+            reducedTransparencyFallbackColor="black"
+          />
           <Picker
             selectedValue={redTime}
             onValueChange={handleRedTimeChange}

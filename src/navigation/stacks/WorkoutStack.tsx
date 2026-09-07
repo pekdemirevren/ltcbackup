@@ -17,6 +17,7 @@ import { GreenLapSettingsScreen } from '../../screens/GreenLapSettingsScreen';
 import { RedLapSettingsScreen } from '../../screens/RedLapSettingsScreen';
 import { WeightSelectionScreen } from '../../screens/WeightSelectionScreen';
 import { CreateWorkoutBlockScreen } from '../../screens/CreateWorkoutBlockScreen';
+import CollectibleWorkoutDetailScreen from '../../screens/CollectibleWorkoutDetailScreen';
 import { RootStackParamList } from '../RootNavigator';
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -25,6 +26,7 @@ const WorkoutStack = () => {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="WorkoutMain" component={WorkoutScreen} />
+      <Stack.Screen name="CollectibleWorkoutDetail" component={CollectibleWorkoutDetailScreen} />
 
 
       {/* Loop/Time/Speed/Lap screens - kept for backward compatibility */}

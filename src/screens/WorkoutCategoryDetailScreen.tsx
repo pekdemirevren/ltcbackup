@@ -70,9 +70,9 @@ const defaultStats: WorkoutStats = {
   sets: 0, strength: 0, energy: 0, cadence: 0, intensity: '0:1', density: 0, consistency: 0, endurance: 0, balance: 100,
   weeklySets: 0, weeklyStrength: 0, weeklyEnergy: 0, weeklyCadence: 0, weeklyIntensity: '0:1', weeklyDensity: 0, weeklyConsistency: 0, weeklyEndurance: 0, weeklyBalance: 100,
   charts: {
-    weeklySets: [0,0,0,0,0,0,0], weeklyStrength: [0,0,0,0,0,0,0], weeklyEnergy: [0,0,0,0,0,0,0],
-    weeklyCadence: [0,0,0,0,0,0,0], weeklyIntensity: [0,0,0,0,0,0,0], weeklyDensity: [0,0,0,0,0,0,0],
-    weeklyConsistency: [0,0,0,0,0,0,0], weeklyEndurance: [0,0,0,0,0,0,0], weeklyBalance: [0,0,0,0,0,0,0],
+    weeklySets: [0, 0, 0, 0, 0, 0, 0], weeklyStrength: [0, 0, 0, 0, 0, 0, 0], weeklyEnergy: [0, 0, 0, 0, 0, 0, 0],
+    weeklyCadence: [0, 0, 0, 0, 0, 0, 0], weeklyIntensity: [0, 0, 0, 0, 0, 0, 0], weeklyDensity: [0, 0, 0, 0, 0, 0, 0],
+    weeklyConsistency: [0, 0, 0, 0, 0, 0, 0], weeklyEndurance: [0, 0, 0, 0, 0, 0, 0], weeklyBalance: [0, 0, 0, 0, 0, 0, 0],
   }
 };
 
@@ -81,7 +81,7 @@ export default function WorkoutCategoryDetailScreen({ navigation, route }: Worko
   const displayTitle = categoryTitle || workoutName || 'Workouts';
   const timerContext = useContext(TimerContext);
   const workout = allWorkouts.find(w => w.workoutId === workoutId);
-  
+
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('W');
   const [stats, setStats] = useState<WorkoutStats>(defaultStats);
 
@@ -98,14 +98,29 @@ export default function WorkoutCategoryDetailScreen({ navigation, route }: Worko
         const allSummaries = JSON.parse(stored);
         const today = new Date();
         const todayStr = today.toDateString();
-        
+
         // Filter by workout if specified
         let filteredSummaries = allSummaries;
         if (workoutId) {
-          filteredSummaries = allSummaries.filter((s: any) => s.workoutId === workoutId);
+          filteredSummaries = allSummaries.filter((s: any) => {
+            if (s.workoutId === workoutId) return true;
+            if (s.workoutId && s.workoutId.includes('_')) {
+              const parts = s.workoutId.split('_');
+              return parts[parts.length - 1] === workoutId;
+            }
+            return false;
+          });
         } else if (workoutIds && workoutIds.length > 0) {
-          filteredSummaries = allSummaries.filter((s: any) => workoutIds.includes(s.workoutId));
+          filteredSummaries = allSummaries.filter((s: any) => {
+            if (workoutIds.includes(s.workoutId)) return true;
+            if (s.workoutId && s.workoutId.includes('_')) {
+              const parts = s.workoutId.split('_');
+              return workoutIds.includes(parts[parts.length - 1]);
+            }
+            return false;
+          });
         }
+
 
         const getDayIndex = (date: Date) => {
           const day = date.getDay();
@@ -248,7 +263,7 @@ export default function WorkoutCategoryDetailScreen({ navigation, route }: Worko
 
   const allMetricsData: MetricData[] = [
     { label: 'Sets', value: stats.weeklySets, todayValue: stats.sets, unit: 'SET', color: MetricColors.sets, chart: stats.charts.weeklySets },
-    { label: 'Strength', value: stats.weeklyStrength, todayValue: stats.strength, unit: 'KG', color: MetricColors.weight, chart: stats.charts.weeklyStrength },
+    { label: 'Strength', value: stats.weeklyStrength, todayValue: stats.strength, unit: 'T', color: MetricColors.weight, chart: stats.charts.weeklyStrength },
     { label: 'Energy', value: stats.weeklyEnergy, todayValue: stats.energy, unit: 'KCAL', color: MetricColors.energy, chart: stats.charts.weeklyEnergy },
     { label: 'Cadence', value: stats.weeklyCadence, todayValue: stats.cadence, unit: 's/r', color: MetricColors.speed, chart: stats.charts.weeklyCadence },
     { label: 'Intensity', value: stats.weeklyIntensity, todayValue: stats.intensity, unit: '', color: MetricColors.energy, chart: stats.charts.weeklyIntensity },
@@ -325,7 +340,7 @@ export default function WorkoutCategoryDetailScreen({ navigation, route }: Worko
       </View>
 
       {/* Metrics */}
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 100 }}
@@ -336,7 +351,7 @@ export default function WorkoutCategoryDetailScreen({ navigation, route }: Worko
             {idx < metricsData.length - 1 && <View style={styles.divider} />}
           </View>
         ))}
-        
+
         {/* View All Metrics Button - only show when focusMetric is active */}
         {workout && focusMetric && (
           <TouchableOpacity
@@ -354,7 +369,7 @@ export default function WorkoutCategoryDetailScreen({ navigation, route }: Worko
             <Text style={styles.startButtonText}>View All Metrics</Text>
           </TouchableOpacity>
         )}
-        
+
         {/* Start Workout Button - only show when viewing all metrics */}
         {workout && !focusMetric && (
           <TouchableOpacity

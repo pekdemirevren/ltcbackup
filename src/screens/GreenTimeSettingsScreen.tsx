@@ -70,13 +70,13 @@ export function GreenTimeSettingsScreen({ route, navigation }: GreenTimeSettings
     const loadSettings = async () => {
       try {
         if (blockId && workoutId) {
-             const { loadWorkoutSettings } = await import('../utils/WorkoutSettingsManager');
-             const loadedSettings = await loadWorkoutSettings(workoutId);
-             const block = loadedSettings.customBlocks?.find((b: any) => b.id === blockId);
-             if (block && block.settings.greenTime) {
-                 setGreenTime(block.settings.greenTime);
-             }
-             return;
+          const { loadWorkoutSettings } = await import('../utils/WorkoutSettingsManager');
+          const loadedSettings = await loadWorkoutSettings(workoutId);
+          const block = loadedSettings.customBlocks?.find((b: any) => b.id === blockId);
+          if (block && block.settings.greenTime) {
+            setGreenTime(block.settings.greenTime);
+          }
+          return;
         }
         if (workoutId) {
           const { loadWorkoutSettings } = await import('../utils/WorkoutSettingsManager');
@@ -179,46 +179,46 @@ export function GreenTimeSettingsScreen({ route, navigation }: GreenTimeSettings
         <View style={{ position: 'absolute', top: 50, right: 24, zIndex: 10 }}>
           <TouchableOpacity
             onPress={async () => {
-                if (workoutId) {
-                    const { loadWorkoutSettings, saveWorkoutSettings } = await import('../utils/WorkoutSettingsManager');
-                    const current = await loadWorkoutSettings(workoutId);
-                    
-                    if (blockId) {
-                        // Update existing block and move to top
-                        const otherBlocks = current.customBlocks?.filter((b: any) => b.id !== blockId) || [];
-                        const existingBlock = current.customBlocks?.find((b: any) => b.id === blockId);
-                        
-                        if (existingBlock) {
-                            const updatedBlock = {
-                                ...existingBlock,
-                                settings: {
-                                    ...existingBlock.settings,
-                                    greenTime: greenTime
-                                }
-                            };
-                            
-                            await saveWorkoutSettings({
-                                ...current,
-                                customBlocks: [updatedBlock, ...otherBlocks]
-                            });
-                        }
-                        navigation.pop(2);
-                    } else {
-                        const newBlock = {
-                            id: Date.now().toString() + Math.random().toString(),
-                            type: 'time' as const,
-                            settings: {
-                                greenTime: greenTime,
-                                restTime: '15'
-                            }
-                        };
-                        await saveWorkoutSettings({
-                            ...current,
-                            customBlocks: [newBlock, ...(current.customBlocks || [])]
-                        });
-                        navigation.pop(2);
+              if (workoutId) {
+                const { loadWorkoutSettings, saveWorkoutSettings } = await import('../utils/WorkoutSettingsManager');
+                const current = await loadWorkoutSettings(workoutId);
+
+                if (blockId) {
+                  // Update existing block and move to top
+                  const otherBlocks = current.customBlocks?.filter((b: any) => b.id !== blockId) || [];
+                  const existingBlock = current.customBlocks?.find((b: any) => b.id === blockId);
+
+                  if (existingBlock) {
+                    const updatedBlock = {
+                      ...existingBlock,
+                      settings: {
+                        ...existingBlock.settings,
+                        greenTime: greenTime
+                      }
+                    };
+
+                    await saveWorkoutSettings({
+                      ...current,
+                      customBlocks: [updatedBlock, ...otherBlocks]
+                    });
+                  }
+                  navigation.pop(2);
+                } else {
+                  const newBlock = {
+                    id: Date.now().toString() + Math.random().toString(),
+                    type: 'time' as const,
+                    settings: {
+                      greenTime: greenTime,
+                      restTime: '15'
                     }
+                  };
+                  await saveWorkoutSettings({
+                    ...current,
+                    customBlocks: [newBlock, ...(current.customBlocks || [])]
+                  });
+                  navigation.pop(2);
                 }
+              }
             }}
             style={{
               width: 48,
@@ -279,7 +279,7 @@ export function GreenTimeSettingsScreen({ route, navigation }: GreenTimeSettings
         </TouchableOpacity>
 
         {/* Açılır/Kapanır Green Picker Alanı */}
-        <Animated.View style={[styles.pickerWrapper, { height: greenPickerHeight, backgroundColor: 'transparent', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderTopWidth: 0, marginTop: -1, marginBottom: isGreenPickerVisible ? 12 : 0 }]}>
+        <Animated.View style={[styles.pickerWrapper, { height: greenPickerHeight, backgroundColor: 'transparent', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderTopWidth: 0, marginTop: -1, marginBottom: isGreenPickerVisible ? 12 : 0, borderRadius: 42, borderTopLeftRadius: 0, borderTopRightRadius: 0 }]}>
           <BlurView
             style={StyleSheet.absoluteFill}
             blurType="thinMaterialDark"
@@ -300,9 +300,9 @@ export function GreenTimeSettingsScreen({ route, navigation }: GreenTimeSettings
 
         {/* Start Workout Butonu */}
         {!isAddMode && (
-        <TouchableOpacity onPress={handleStart} style={[styles.startButton, { backgroundColor: colors.time.primary, height: 50 }]} activeOpacity={0.9}>
-          <Text style={styles.startButtonText}>Start Workout</Text>
-        </TouchableOpacity>
+          <TouchableOpacity onPress={handleStart} style={[styles.startButton, { backgroundColor: colors.time.primary, height: 50 }]} activeOpacity={0.9}>
+            <Text style={styles.startButtonText}>Start Workout</Text>
+          </TouchableOpacity>
         )}
       </ScrollView>
     </View>

@@ -103,3 +103,73 @@ export function getGifRequirePath(fileName: string): any {
 
     return paths[fileName];
 }
+/**
+ * ROLE mapping for workouts
+ */
+export type WorkoutRole = 'STRENGTH' | 'HYPERTROPHY' | 'CONDITIONING' | 'RECOVERY' | 'ACC';
+
+export function getWorkoutRole(workoutName: string): WorkoutRole {
+    const n = workoutName.toLowerCase();
+
+    // Recovery / Low Intensity
+    if (n.includes('walk') || n.includes('bike') || n.includes('cycling')) return 'RECOVERY';
+
+    // Conditioning / Cardio
+    if (n.includes('run') || n.includes('rope') || n.includes('cross trainer') || n.includes('jump')) return 'CONDITIONING';
+
+    // Strength / Heavy Compound (Simplified)
+    if (n.includes('press') || n.includes('squat') || n.includes('deadlift') || n.includes('row')) {
+        return n.includes('dumbbell') || n.includes('cable') ? 'HYPERTROPHY' : 'STRENGTH';
+    }
+
+    // Accessory / Isolation
+    if (n.includes('curl') || n.includes('extension') || n.includes('raise') || n.includes('fly')) return 'ACC';
+
+    return 'HYPERTROPHY'; // Default
+}
+
+/**
+ * Generates a program package (4-6 workouts) based on theme and attribute targets
+ * Logic:
+ * 1. Filter by theme (PULL/PUSH/LEGS)
+ * 2. Slot allocation based on roles
+ * 3. Fallback to general recovery/conditioning if needed
+ */
+export function generateMainCardPackage(
+    theme: 'PULL' | 'PUSH' | 'LEGS',
+    count: number = 6
+): string[] {
+    const { allWorkouts } = require('../constants/workoutData');
+
+    // 1. Filter candidates by theme
+    const themeWorkouts = allWorkouts.filter((w: any) =>
+        w.muscleGroup.toUpperCase() === theme.toUpperCase() ||
+        (theme === 'LEGS' && w.muscleGroup === 'Cardio') // Cardio often fits LEGS days
+    );
+
+    const result: string[] = [];
+
+    // 2. Role-based slot allocation (Target for a 6-card package)
+    // Strength: 2, Hyp: 2, Recovery: 1, Conditioning: 1
+    const roles: WorkoutRole[] = count === 6
+        ? ['STRENGTH', 'STRENGTH', 'HYPERTROPHY', 'HYPERTROPHY', 'RECOVERY', 'CONDITIONING']
+        : ['STRENGTH', 'HYPERTROPHY', 'RECOVERY', 'CONDITIONING']; // 4-card fallback
+
+    roles.slice(0, count).forEach(role => {
+        const candidates = themeWorkouts.filter((w: any) =>
+            getWorkoutRole(w.name) === role && !result.includes(w.workoutId)
+        );
+
+        if (candidates.length > 0) {
+            // Pick a random candidate for variety
+            const picked = candidates[Math.floor(Math.random() * candidates.length)];
+            result.push(picked.workoutId);
+        } else {
+            // Fallback: Pick any theme workout not already included
+            const fallback = themeWorkouts.find((w: any) => !result.includes(w.workoutId));
+            if (fallback) result.push(fallback.workoutId);
+        }
+    });
+
+    return result;
+}

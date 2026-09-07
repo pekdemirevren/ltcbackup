@@ -70,13 +70,13 @@ export function RedTimeSettingsScreen({ route, navigation }: RedTimeSettingsScre
     const loadSettings = async () => {
       try {
         if (blockId && workoutId) {
-             const { loadWorkoutSettings } = await import('../utils/WorkoutSettingsManager');
-             const loadedSettings = await loadWorkoutSettings(workoutId);
-             const block = loadedSettings.customBlocks?.find((b: any) => b.id === blockId);
-             if (block && block.settings.restTime) {
-                 setRedTime(block.settings.restTime);
-             }
-             return;
+          const { loadWorkoutSettings } = await import('../utils/WorkoutSettingsManager');
+          const loadedSettings = await loadWorkoutSettings(workoutId);
+          const block = loadedSettings.customBlocks?.find((b: any) => b.id === blockId);
+          if (block && block.settings.restTime) {
+            setRedTime(block.settings.restTime);
+          }
+          return;
         }
         if (workoutId) {
           const { loadWorkoutSettings } = await import('../utils/WorkoutSettingsManager');
@@ -175,46 +175,46 @@ export function RedTimeSettingsScreen({ route, navigation }: RedTimeSettingsScre
         <View style={{ position: 'absolute', top: 50, right: 24, zIndex: 10 }}>
           <TouchableOpacity
             onPress={async () => {
-                if (workoutId) {
-                    const { loadWorkoutSettings, saveWorkoutSettings } = await import('../utils/WorkoutSettingsManager');
-                    const current = await loadWorkoutSettings(workoutId);
-                    
-                    if (blockId) {
-                        // Update existing block and move to top
-                        const otherBlocks = current.customBlocks?.filter((b: any) => b.id !== blockId) || [];
-                        const existingBlock = current.customBlocks?.find((b: any) => b.id === blockId);
-                        
-                        if (existingBlock) {
-                            const updatedBlock = {
-                                ...existingBlock,
-                                settings: {
-                                    ...existingBlock.settings,
-                                    restTime: redTime
-                                }
-                            };
-                            
-                            await saveWorkoutSettings({
-                                ...current,
-                                customBlocks: [updatedBlock, ...otherBlocks]
-                            });
-                        }
-                        navigation.pop(2);
-                    } else {
-                        const newBlock = {
-                            id: Date.now().toString() + Math.random().toString(),
-                            type: 'time' as const,
-                            settings: {
-                                greenTime: '30',
-                                restTime: redTime
-                            }
-                        };
-                        await saveWorkoutSettings({
-                            ...current,
-                            customBlocks: [newBlock, ...(current.customBlocks || [])]
-                        });
-                        navigation.pop(2);
+              if (workoutId) {
+                const { loadWorkoutSettings, saveWorkoutSettings } = await import('../utils/WorkoutSettingsManager');
+                const current = await loadWorkoutSettings(workoutId);
+
+                if (blockId) {
+                  // Update existing block and move to top
+                  const otherBlocks = current.customBlocks?.filter((b: any) => b.id !== blockId) || [];
+                  const existingBlock = current.customBlocks?.find((b: any) => b.id === blockId);
+
+                  if (existingBlock) {
+                    const updatedBlock = {
+                      ...existingBlock,
+                      settings: {
+                        ...existingBlock.settings,
+                        restTime: redTime
+                      }
+                    };
+
+                    await saveWorkoutSettings({
+                      ...current,
+                      customBlocks: [updatedBlock, ...otherBlocks]
+                    });
+                  }
+                  navigation.pop(2);
+                } else {
+                  const newBlock = {
+                    id: Date.now().toString() + Math.random().toString(),
+                    type: 'time' as const,
+                    settings: {
+                      greenTime: '30',
+                      restTime: redTime
                     }
+                  };
+                  await saveWorkoutSettings({
+                    ...current,
+                    customBlocks: [newBlock, ...(current.customBlocks || [])]
+                  });
+                  navigation.pop(2);
                 }
+              }
             }}
             style={{
               width: 48,
@@ -275,7 +275,7 @@ export function RedTimeSettingsScreen({ route, navigation }: RedTimeSettingsScre
         </TouchableOpacity>
 
         {/* Açılır/Kapanır Red Picker Alanı */}
-        <Animated.View style={[styles.pickerWrapper, { height: redPickerHeight, backgroundColor: 'transparent', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderTopWidth: 0, marginTop: -1, marginBottom: isRedPickerVisible ? 12 : 0 }]}>
+        <Animated.View style={[styles.pickerWrapper, { height: redPickerHeight, backgroundColor: 'transparent', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderTopWidth: 0, marginTop: -1, marginBottom: isRedPickerVisible ? 12 : 0, borderRadius: 42, borderTopLeftRadius: 0, borderTopRightRadius: 0 }]}>
           <BlurView
             style={StyleSheet.absoluteFill}
             blurType="thinMaterialDark"
@@ -296,9 +296,9 @@ export function RedTimeSettingsScreen({ route, navigation }: RedTimeSettingsScre
 
         {/* Start Workout Butonu */}
         {!isAddMode && (
-        <TouchableOpacity onPress={handleStart} style={[styles.startButton, { backgroundColor: colors.time.primary, height: 50 }]} activeOpacity={0.9}>
-          <Text style={styles.startButtonText}>Start Workout</Text>
-        </TouchableOpacity>
+          <TouchableOpacity onPress={handleStart} style={[styles.startButton, { backgroundColor: colors.time.primary, height: 50 }]} activeOpacity={0.9}>
+            <Text style={styles.startButtonText}>Start Workout</Text>
+          </TouchableOpacity>
         )}
       </ScrollView>
     </View>

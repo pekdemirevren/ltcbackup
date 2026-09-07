@@ -1,4 +1,15 @@
 import 'react-native-gesture-handler'; // Should be at the very top
+
+// Configure Reanimated logger to disable strict mode
+// This suppresses "Reading from value during component render" warnings
+// which occur during useAnimatedStyle's initial render phase (expected behavior)
+import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-reanimated';
+
+configureReanimatedLogger({
+  level: ReanimatedLogLevel.warn,
+  strict: false, // Disable strict mode checking
+});
+
 import React, { useEffect, useContext } from 'react';
 import { StatusBar, useColorScheme } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -10,6 +21,8 @@ import Orientation from 'react-native-orientation-locker'; // Import react-nativ
 import Theme from './src/constants/theme'; // default export olduğu için Theme olarak import
 import { ThemeContext } from './src/contexts/ThemeContext';
 import { TimerProvider } from './src/contexts/TimerContext'; // Import TimerProvider
+
+import { UnifiedLiquidGlassMenuProvider } from './src/components/UnifiedLiquidGlassMenu';
 
 // Import the RootNavigator
 import RootNavigator from './src/navigation/RootNavigator';
@@ -41,8 +54,10 @@ function App(): React.JSX.Element {
         <ThemeContext.Provider value={{ colors: currentTheme, Icons: Theme.Icons }}>
           <NavigationContainer key="reset-nav-state-2">
             <TimerProvider>
-              <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-              <RootNavigator />
+              <UnifiedLiquidGlassMenuProvider>
+                <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+                <RootNavigator />
+              </UnifiedLiquidGlassMenuProvider>
             </TimerProvider>
           </NavigationContainer>
         </ThemeContext.Provider>

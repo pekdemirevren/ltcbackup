@@ -99,7 +99,7 @@ export default function TrendsScreen({ navigation }: TrendsScreenProps) {
           const cadenceVal = totalReps > 0 && totalDuration > 0 ? (totalDuration / totalReps).toFixed(1) : 0;
           const densityVal = totalDuration > 0 ? Math.round((totalActiveTime / totalDuration) * 100) : 0;
           const intensityRatio = totalRestTime > 0 ? `${Math.round(totalActiveTime / 60)}:${Math.round(totalRestTime / 60)}` : '0:1';
-          
+
           return {
             kcal: Object.values(grouped).reduce((a: number, b: any) => a + b.kcal, 0) / count,
             vol: Object.values(grouped).reduce((a: number, b: any) => a + b.volume, 0) / count,
@@ -115,7 +115,7 @@ export default function TrendsScreen({ navigation }: TrendsScreenProps) {
         const current = getPeriodData(0, 7);
         const previous = getPeriodData(7, 14);
 
-        const getDir = (curr: number, prev: number) => curr >= prev ? 'up' : 'down';
+        const getDir = (curr: number, prev: number) => (curr > 0 && curr >= prev) ? 'up' : 'down';
 
         setTrendsData({
           energy: { val: Math.round(current.kcal), dir: getDir(current.kcal, previous.kcal) },
@@ -123,10 +123,10 @@ export default function TrendsScreen({ navigation }: TrendsScreenProps) {
           sets: { val: Math.round(current.sets), dir: getDir(current.sets, previous.sets) },
           endurance: { val: Math.round(current.dur), dir: getDir(current.dur, previous.dur) },
           consistency: { val: Math.round((current.activeDays / 7) * 100), dir: getDir(current.activeDays, previous.activeDays) },
-          balance: { val: Math.round(([current.kcal > 0, current.vol > 0, current.sets > 0, current.dur > 0].filter(Boolean).length / 4) * 100), dir: 'up' },
+          balance: { val: Math.round(([current.kcal > 0, current.vol > 0, current.sets > 0, current.dur > 0].filter(Boolean).length / 4) * 100), dir: getDir(([current.kcal > 0, current.vol > 0, current.sets > 0, current.dur > 0].filter(Boolean).length), ([previous.kcal > 0, previous.vol > 0, previous.sets > 0, previous.dur > 0].filter(Boolean).length)) },
           cadence: { val: current.cadence || 0, dir: getDir(current.cadence || 0, previous.cadence || 0) },
           density: { val: current.density || 0, dir: getDir(current.density || 0, previous.density || 0) },
-          intensity: { val: current.intensity || '0:1', dir: 'up' }
+          intensity: { val: current.intensity || '0:1', dir: current.intensity !== '0:1' ? 'up' : 'down' }
         });
       }
     } catch (e) {
@@ -137,6 +137,9 @@ export default function TrendsScreen({ navigation }: TrendsScreenProps) {
   const trends = [
     { title: 'Energy', value: `${trendsData.energy.val}`, unit: 'KCAL/DAY', desc: 'Daily calorie burn average.', color: COLORS.red, screen: 'MoveScreen', direction: trendsData.energy.dir },
     { title: 'Strength', value: `${trendsData.strength.val}`, unit: 'KG/DAY', desc: 'Daily training volume average.', color: COLORS.purple, screen: 'StrengthTrend', direction: trendsData.strength.dir },
+    { title: '1RM Trend', value: `0`, unit: 'KG', desc: 'Estimated One Rep Max progression.', color: '#F9104E', screen: 'OneRMTrend', direction: 'down' },
+    { title: 'Progression', value: `0%`, unit: '', desc: 'Volume and strength against last month.', color: '#FF9F0A', screen: 'ProgressionTrend', direction: 'down' },
+    { title: 'RPE Trend', value: `0`, unit: '', desc: 'Rate of Perceived Exertion and intensity.', color: '#BF5AF2', screen: 'RPETrend', direction: 'down' },
     { title: 'Sets', value: `${trendsData.sets.val}`, unit: 'SETS/DAY', desc: 'Average sets completed daily.', color: COLORS.blue, screen: 'SetsTrend', direction: trendsData.sets.dir },
     { title: 'Endurance', value: `${trendsData.endurance.val}`, unit: 'MIN/DAY', desc: 'Average workout duration.', color: COLORS.pink, screen: 'EnduranceTrend', direction: trendsData.endurance.dir },
     { title: 'Consistency', value: `${trendsData.consistency.val}%`, unit: 'FREQUENCY', desc: 'Workout frequency (last 7 days).', color: COLORS.green, screen: 'ConsistencyTrend', direction: trendsData.consistency.dir },

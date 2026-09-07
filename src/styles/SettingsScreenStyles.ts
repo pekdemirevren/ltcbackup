@@ -37,7 +37,7 @@ export const SettingsScreenStyles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 13,
-    paddingBottom: 150, // Butonun ve nav bar'ın arkasında kalmaması için
+    paddingBottom: 250, // Butonun ve nav bar'ın arkasında kalmaması için
   },
   card: {
     borderRadius: 24,

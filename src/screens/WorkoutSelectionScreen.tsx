@@ -1,7 +1,8 @@
-import React, { useContext } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, ScrollView } from 'react-native';
+import React, { useContext, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, ScrollView, Animated } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import Feather from 'react-native-vector-icons/Feather';
+import { LiquidGlass } from '../components/LiquidGlass';
 import TimeIcon from '../assets/icons/TimeIcon';
 import { StackScreenProps } from '@react-navigation/stack';
 
@@ -100,6 +101,27 @@ export function WorkoutSelectionScreen({ navigation }: WorkoutSelectionScreenPro
   } = useContext(TimerContext)!;
   const styles = getStyles(colors);
 
+  // Header Animations
+  const scrollY = useRef(new Animated.Value(0)).current;
+
+  const headerBgOpacity = scrollY.interpolate({
+    inputRange: [10, 50],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
+
+  const stickyTitleOpacity = scrollY.interpolate({
+    inputRange: [50, 80],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
+
+  const stickyTitleTranslateY = scrollY.interpolate({
+    inputRange: [50, 80],
+    outputRange: [10, 0],
+    extrapolate: 'clamp',
+  });
+
   // Helper to load and set settings in context, then start timer
   const handleQuickStart = async (workoutType?: string) => {
     // Determine workoutId by type (for now, use type as id)
@@ -143,16 +165,42 @@ export function WorkoutSelectionScreen({ navigation }: WorkoutSelectionScreenPro
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Feather name="chevron-left" size={24} color="white" /> {/* Use Feather icon */}
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Select Workout</Text>
-        <View style={{ width: 40 }} /> {/* Başlığı ortalamak için boş view */}
-      </View>
+      {/* Dynamic Blurred Header */}
+      <Animated.View style={styles.header}>
+        <Animated.View style={[styles.headerBlurContainer, { opacity: headerBgOpacity }]}>
+          <LiquidGlass
+            style={styles.headerBlur}
+            blurAmount={15}
+            borderRadius={0}
+          >
+            <View style={{ height: '100%' }} />
+          </LiquidGlass>
+        </Animated.View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', zIndex: 1 }}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Feather name="chevron-left" size={24} color="white" />
+          </TouchableOpacity>
+
+          <Animated.View style={[styles.headerCenterTitle, { opacity: stickyTitleOpacity, transform: [{ translateY: stickyTitleTranslateY }] }]} pointerEvents="none">
+            <Text style={styles.stickyTitleText}>Workout</Text>
+          </Animated.View>
+
+          <View style={{ width: 40 }} />
+        </View>
+      </Animated.View>
+
+      <Animated.ScrollView
+        contentContainerStyle={styles.scrollContent}
+        scrollEventThrottle={16}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true }
+        )}
+      >
+        <View style={styles.largeTitleContainer}>
+          <Text style={styles.headerTitle}>Select Workout</Text>
+        </View>
         <LocalWorkoutCard
           title="Quick Start"
           icon="play"
@@ -184,7 +232,7 @@ export function WorkoutSelectionScreen({ navigation }: WorkoutSelectionScreenPro
           onPress={() => handleSelectWorkout('repeat')}
           onPlayPress={() => handleQuickStart('repeat')}
         />
-      </ScrollView>
+      </Animated.ScrollView>
     </View>
   );
 }

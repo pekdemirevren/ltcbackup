@@ -24,10 +24,10 @@ export const DailyWorkoutWidgetStyle = StyleSheet.create({
   widgetContainer: {
     width: WIDGET_WIDTH,
     backgroundColor: '#1C1C1E',
-    borderRadius: 20,
+    borderRadius: 24, // Updated from 20 to match standard summary cards
     padding: 16,
     marginHorizontal: 0,
-    marginBottom: 10,
+    marginBottom: 0, // Removed extra margin as it's handled by Sortable.Flex rowGap
   },
 
   // === ÜST BÖLÜM ===

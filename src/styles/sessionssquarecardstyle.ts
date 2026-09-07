@@ -38,12 +38,12 @@ export const SessionsSquareCardStyle = StyleSheet.create({
     metric: {
         fontSize: SquareCardMeasurements.session.metricFontSize,
         fontWeight: '700',
-        color: '#9DEC2C',
+        color: '#FFFFFF',
         marginTop: SquareCardMeasurements.session.metricMarginTop,
     },
     unit: {
         fontSize: SquareCardMeasurements.session.unitFontSize,
-        color: '#9DEC2C',
+        color: '#FFFFFF',
     },
     dateLabel: {
         fontSize: SquareCardMeasurements.session.dateFontSize,
@@ -85,12 +85,12 @@ export const SessionsSquareCardStyle = StyleSheet.create({
     sessionSquareMetric: {
         fontSize: SquareCardMeasurements.session.metricFontSize,
         fontWeight: '700',
-        color: '#9DEC2C',
+        color: '#FFFFFF',
         marginTop: SquareCardMeasurements.session.metricMarginTop,
     },
     sessionSquareUnit: {
         fontSize: SquareCardMeasurements.session.unitFontSize,
-        color: '#9DEC2C',
+        color: '#FFFFFF',
     },
     sessionSquareDate: {
         fontSize: SquareCardMeasurements.session.dateFontSize,

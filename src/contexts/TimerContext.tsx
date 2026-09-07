@@ -46,7 +46,15 @@ export interface TimerContextType {
   startTimerWithWorkoutSettings: (
     workoutId: string,
     workoutName?: string,
+    collectibleCardId?: string,
+    collectibleBaseLevel?: number,
+    initialSettings?: {
+      targetSets?: string;
+      targetReps?: string;
+      weight?: string;
+    },
   ) => Promise<void>;
+
   startTimerWithCurrentSettings: (
     isCustomWorkout?: boolean,
     loopConfig?: { time: string; speed: number } | null,
@@ -213,7 +221,17 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
 
   // ✅ GÜNCELLENMIŞ: startTimerWithWorkoutSettings
   const startTimerWithWorkoutSettings = useCallback(
-    async (workoutId: string, workoutName?: string) => {
+    async (
+      workoutId: string,
+      workoutName?: string,
+      collectibleCardId?: string,
+      collectibleBaseLevel?: number,
+      initialSettings?: {
+        targetSets?: string;
+        targetReps?: string;
+        weight?: string;
+      },
+    ) => {
       try {
         console.log(
           '🔍 TimerContext: Loading settings for workoutId:',
@@ -244,8 +262,8 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
         setRedReps(workoutSettings.redReps);
         setGreenCountdownSpeed(workoutSettings.greenCountdownSpeed);
         setRedCountdownSpeed(workoutSettings.redCountdownSpeed);
-        if (workoutSettings.weight) {
-            setWeight(workoutSettings.weight);
+        if (initialSettings?.weight || workoutSettings.weight) {
+          setWeight(initialSettings?.weight || workoutSettings.weight || '75');
         }
         // Handle infinite loop stuff if it exists in workoutSettings
         if (workoutSettings.infiniteLoopTime) {
@@ -256,8 +274,8 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
         }
 
         // Triple Tracking Initialization
-        setTargetSets(parseInt(workoutSettings.targetSets || '3'));
-        setTargetReps(parseInt(workoutSettings.targetReps || '6'));
+        setTargetSets(parseInt(initialSettings?.targetSets || workoutSettings.targetSets || '3', 10));
+        setTargetReps(parseInt(initialSettings?.targetReps || workoutSettings.targetReps || '6', 10));
         setCurrentSet(1);
         setIsRecovery(false);
 
@@ -270,7 +288,9 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
           workoutName: finalWorkoutName,
           settings: {
             ...workoutSettings,
-            weight: workoutSettings.weight || weight,
+            targetSets: initialSettings?.targetSets || workoutSettings.targetSets,
+            targetReps: initialSettings?.targetReps || workoutSettings.targetReps,
+            weight: initialSettings?.weight || workoutSettings.weight || weight,
           },
           initialGreenTime: workoutSettings.greenTime,
           initialRestTime: workoutSettings.restTime,
@@ -282,6 +302,8 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
           initialIsPaused: false,
           initialInfiniteLoopTime: workoutSettings.infiniteLoopTime || infiniteLoopTime,
           initialInfiniteSpeed: workoutSettings.infiniteSpeed || infiniteSpeed,
+          collectibleCardId,
+          collectibleBaseLevel,
         };
 
         console.log(
@@ -297,8 +319,9 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
         );
       }
     },
-    [navigation, infiniteLoopTime, infiniteSpeed],
+    [navigation, infiniteLoopTime, infiniteSpeed, weight],
   );
+
 
   // ✅ GÜNCELLENMIŞ: startTimerWithCurrentSettings
   const startTimerWithCurrentSettings = useCallback(

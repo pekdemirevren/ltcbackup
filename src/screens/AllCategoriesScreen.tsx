@@ -11,7 +11,11 @@ import { StackScreenProps } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/RootNavigator';
 import Feather from 'react-native-vector-icons/Feather';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import { allWorkouts, Workout } from '../constants/workoutData';
+import { allWorkouts, Workout, findExerciseIcon } from '../constants/workoutData';
+import { collectibleWorkouts, CollectibleWorkout } from '../constants/collectibleWorkouts';
+import { BlurView } from '@react-native-community/blur';
+import LinearGradient from 'react-native-linear-gradient';
+import { LiquidGlass } from '../components/LiquidGlass';
 
 type AllCategoriesScreenProps = StackScreenProps<RootStackParamList, 'AllCategories'>;
 
@@ -36,37 +40,48 @@ const STATIC_CATEGORIES: CategoryItem[] = [
   { id: 'awards', title: 'Awards', icon: 'hexagon-outline', iconType: 'material', screen: null },
 ];
 
-// Convert workouts to category items
-const WORKOUT_CATEGORIES: CategoryItem[] = allWorkouts.map((workout: Workout) => ({
-  id: workout.workoutId,
-  title: workout.name,
-  icon: '',
-  iconType: 'svg' as const,
-  screen: 'WorkoutCategoryDetail' as keyof RootStackParamList,
-  isWorkout: true,
-  workoutId: workout.workoutId,
-  SvgIcon: workout.SvgIcon,
-}));
+// Convert all project workouts to category items
+const WORKOUT_CATEGORIES: CategoryItem[] = allWorkouts.map((workout: Workout) => {
+  const isWorkout = true;
+  const workoutId = workout.workoutId;
+  let IconComponent = workout.SvgIcon;
+
+  // Optimized icon lookup: try to find exercise icon from collectible data if available
+  const cw = (collectibleWorkouts as CollectibleWorkout[]).find(w => w.id === workoutId);
+  if (cw && cw.exercises && cw.exercises.length > 0) {
+    IconComponent = findExerciseIcon(cw.exercises[0].name);
+  }
+
+  return {
+    id: workout.id,
+    title: workout.name,
+    icon: '',
+    iconType: 'svg' as const,
+    screen: 'WorkoutEventDetailScreen' as any,
+    isWorkout,
+    workoutId,
+    SvgIcon: IconComponent,
+  };
+});
 
 // Combined list
 const CATEGORIES: CategoryItem[] = [...STATIC_CATEGORIES, ...WORKOUT_CATEGORIES];
 
+import { FlashList } from '@shopify/flash-list';
+
 export default function AllCategoriesScreen({ navigation }: AllCategoriesScreenProps) {
-  const handleCategoryPress = (category: CategoryItem) => {
+  const handleCategoryPress = React.useCallback((category: CategoryItem) => {
     if (category.screen) {
       if (category.isWorkout && category.workoutId) {
-        // Navigate to workout detail
-        navigation.navigate('WorkoutCategoryDetail' as any, { 
+        navigation.navigate('CollectibleWorkoutDetail' as any, {
           workoutId: category.workoutId,
           workoutName: category.title,
         });
       } else if (category.screen === 'SessionsScreen') {
         navigation.navigate('SessionsScreen' as any);
       } else if (category.id === 'trends') {
-        // Navigate directly to Trends screen
         navigation.navigate('Trends' as any);
       } else if (category.nestedScreen) {
-        // Navigate to nested screen within a tab (deeply nested)
         navigation.navigate('Main' as any, {
           screen: category.screen,
           params: {
@@ -77,21 +92,45 @@ export default function AllCategoriesScreen({ navigation }: AllCategoriesScreenP
         navigation.navigate(category.screen as any);
       }
     }
-  };
+  }, [navigation]);
 
-  const renderIcon = (category: CategoryItem) => {
+  const renderItem = React.useCallback(({ item: category }: { item: CategoryItem }) => {
+    const isWorkout = category.isWorkout;
     const iconSize = 24;
     const iconColor = '#9DEC2C';
 
-    if (category.iconType === 'svg' && category.SvgIcon) {
-      const IconComponent = category.SvgIcon;
-      return <IconComponent width={iconSize} height={iconSize} fill={iconColor} />;
-    } else if (category.iconType === 'feather') {
-      return <Feather name={category.icon} size={iconSize} color={iconColor} />;
-    } else {
-      return <MaterialCommunityIcons name={category.icon} size={iconSize} color={iconColor} />;
-    }
-  };
+    const IconComponent = category.SvgIcon || (isWorkout ? findExerciseIcon(category.workoutId || category.title) : null);
+
+    return (
+      <TouchableOpacity
+        style={[styles.staticCard, { backgroundColor: 'rgba(255,255,255,0.06)' }]}
+        onPress={() => handleCategoryPress(category)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.staticLeft}>
+          <View style={styles.staticIconContainer}>
+            {isWorkout ? (
+              IconComponent ? (
+                <IconComponent width={iconSize} height={iconSize} fill={iconColor} />
+              ) : (
+                <MaterialCommunityIcons name="dumbbell" size={iconSize} color={iconColor} />
+              )
+            ) : (
+              category.iconType === 'svg' && IconComponent ? (
+                <IconComponent width={iconSize} height={iconSize} fill={iconColor} />
+              ) : category.iconType === 'feather' ? (
+                <Feather name={category.icon} size={iconSize} color={iconColor} />
+              ) : (
+                <MaterialCommunityIcons name={category.icon} size={iconSize} color={iconColor} />
+              )
+            )}
+          </View>
+          <Text style={styles.staticTitle}>{category.title}</Text>
+        </View>
+        <Feather name="chevron-right" size={20} color="#8E8E93" />
+      </TouchableOpacity>
+    );
+  }, [handleCategoryPress]);
 
   return (
     <View style={styles.container}>
@@ -111,32 +150,16 @@ export default function AllCategoriesScreen({ navigation }: AllCategoriesScreenP
       <Text style={styles.title}>All Categories</Text>
 
       {/* Categories List */}
-      <View style={styles.listContainer}>
-        <ScrollView 
-          style={styles.scrollView}
-          showsVerticalScrollIndicator={false}
-        >
-          {CATEGORIES.map((category, index) => (
-            <TouchableOpacity
-              key={category.id}
-              style={[
-                styles.categoryItem,
-                index < CATEGORIES.length - 1 && styles.categoryItemBorder
-              ]}
-              onPress={() => handleCategoryPress(category)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.categoryLeft}>
-                <View style={styles.iconContainer}>
-                  {renderIcon(category)}
-                </View>
-                <Text style={styles.categoryTitle}>{category.title}</Text>
-              </View>
-              <Feather name="chevron-right" size={20} color="#8E8E93" />
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
+      <FlashList
+        {...({
+          data: CATEGORIES,
+          renderItem: renderItem,
+          keyExtractor: (item: CategoryItem) => item.id,
+          estimatedItemSize: 80,
+          contentContainerStyle: styles.scrollContent,
+          showsVerticalScrollIndicator: false,
+        } as any)}
+      />
     </View>
   );
 }
@@ -159,8 +182,6 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 0.8,
-    borderColor: 'rgba(255,255,255,0.18)',
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   title: {
@@ -173,39 +194,41 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     flex: 1,
-    marginHorizontal: 20,
-    backgroundColor: '#1C1C1E',
-    borderRadius: 16,
+    marginHorizontal: 15, // Slightly thinner
+    backgroundColor: 'transparent', // Clearer container
+    borderRadius: 32,
     overflow: 'hidden',
   },
   scrollView: {
     flex: 1,
   },
-  categoryItem: {
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+  },
+  staticCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 14,
+    paddingVertical: 12,
     paddingHorizontal: 16,
-    minHeight: 56,
+    marginBottom: 10,
+    borderRadius: 32,
+    borderWidth: 0, // Changed from 1 to 0
+    borderColor: 'rgba(255,255,255,0.05)', // Border removed, so this might be redundant but kept for consistency
   },
-  categoryItemBorder: {
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#3A3A3C',
-  },
-  categoryLeft: {
+  staticLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
   },
-  iconContainer: {
+  staticIconContainer: {
     width: 32,
     height: 32,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
-  categoryTitle: {
+  staticTitle: {
     fontSize: 17,
     color: '#FFF',
     fontWeight: '400',

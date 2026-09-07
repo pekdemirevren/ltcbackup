@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useContext } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, StatusBar, LayoutAnimation, Platform, UIManager } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, StatusBar, LayoutAnimation, Platform, UIManager, Animated } from 'react-native';
+import { LiquidGlass } from '../components/LiquidGlass';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ThemeContext } from '../contexts/ThemeContext';
 import Theme from '../constants/theme';
@@ -8,11 +9,44 @@ import { allWorkouts } from '../constants/workoutData';
 import LinearGradient from 'react-native-linear-gradient';
 import { AnimatedCircularProgress } from 'react-native-circular-progress';
 import { calculateCalories } from '../utils/CalorieCalculator';
+import Svg, { Path, Polygon, G, Defs, LinearGradient as SvgGradient, Stop as SvgStop } from 'react-native-svg';
+
+const GeometricPattern = ({ color, seed }: { color: string, seed: string }) => {
+    const hash = seed.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const rotation = (hash % 4) * 90;
+    const scale = 1.8 + (hash % 3) * 0.2;
+    const shiftY = (hash % 5) * 5;
+
+    return (
+        <View style={StyleSheet.absoluteFill}>
+            <Svg height="100%" width="100%" style={{ opacity: 0.3 }}>
+                <Defs>
+                    <SvgGradient id={`patternGradSummary_${seed}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                        <SvgStop offset="0%" stopColor={color} stopOpacity="1" />
+                        <SvgStop offset="100%" stopColor={color} stopOpacity="0.2" />
+                    </SvgGradient>
+                </Defs>
+                <G transform={`scale(${scale}) translate(0, ${shiftY}) rotate(${rotation}, 100, 100)`}>
+                    <Polygon points="50,0 160,60 50,120" fill={`url(#patternGradSummary_${seed})`} />
+                    <Polygon points="180,80 280,160 180,240" fill={`url(#patternGradSummary_${seed})`} />
+                    <Polygon points="0,180 120,240 0,300" fill={`url(#patternGradSummary_${seed})`} />
+                    <Path
+                        d="M80 60 L240 180 L80 300 Z"
+                        stroke={color}
+                        strokeWidth="1.5"
+                        fill="none"
+                        opacity="0.4"
+                    />
+                </G>
+            </Svg>
+        </View>
+    );
+};
 
 if (Platform.OS === 'android') {
-  if (UIManager.setLayoutAnimationEnabledExperimental) {
-    UIManager.setLayoutAnimationEnabledExperimental(true);
-  }
+    if (UIManager.setLayoutAnimationEnabledExperimental) {
+        UIManager.setLayoutAnimationEnabledExperimental(true);
+    }
 }
 
 interface WorkoutSummary {
@@ -57,7 +91,7 @@ const SummaryCard = ({ item, workoutIcon: WorkoutIcon }: { item: WorkoutSummary,
     const formatTimeRange = (dateString: string, elapsedSeconds: number) => {
         const endDate = new Date(dateString);
         const startDate = new Date(endDate.getTime() - elapsedSeconds * 1000);
-        
+
         const format = (date: Date) => date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
         return `${format(startDate)}–${format(endDate)}`;
     };
@@ -115,7 +149,7 @@ const SummaryCard = ({ item, workoutIcon: WorkoutIcon }: { item: WorkoutSummary,
                     </View>
                 </View>
             </View>
-            
+
             {/* Workout Details Card */}
             <TouchableOpacity onPress={toggleDetails} activeOpacity={0.7} style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Workout Details</Text>
@@ -123,73 +157,83 @@ const SummaryCard = ({ item, workoutIcon: WorkoutIcon }: { item: WorkoutSummary,
             </TouchableOpacity>
 
             {detailsOpen && (
-                <View style={styles.card}>
-                    <View style={styles.statsGrid}>
-                        {/* Row 1 */}
-                        <View style={styles.statRow}>
-                            <View style={[styles.statCol, { paddingLeft: 8 }]}>
-                                <Text style={styles.statLabel}>Workout Time</Text>
-                                <Text style={[styles.statValue, { color: '#FEE522' }]}>
-                                    {formatDuration(activeTime > 0 ? activeTime : item.elapsedTime)}<Text style={styles.unitText}>MIN</Text>
-                                </Text>
+                <View style={styles.workoutCardWrapper}>
+                    <LinearGradient
+                        colors={['#707070', '#1A1A1A']}
+                        style={styles.card}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                    >
+                        <View style={[styles.borderGlow, { borderColor: '#A0A0A0', opacity: 0.3 }]} />
+                        <GeometricPattern color="#A0A0A0" seed={item.date} />
+
+                        <View style={styles.statsGrid}>
+                            {/* Row 1 */}
+                            <View style={styles.statRow}>
+                                <View style={[styles.statCol, { paddingLeft: 8 }]}>
+                                    <Text style={styles.statLabel}>Workout Time</Text>
+                                    <Text style={[styles.statValue, { color: '#FEE522' }]}>
+                                        {formatDuration(activeTime > 0 ? activeTime : item.elapsedTime)}<Text style={styles.unitText}>MIN</Text>
+                                    </Text>
+                                </View>
+                                <View style={[styles.statCol, { paddingLeft: 32 }]}>
+                                    <Text style={styles.statLabel}>Avg. Workout</Text>
+                                    <Text style={[styles.statValue, { color: '#64D2FF' }]}>
+                                        {formatDuration(avgWorkoutTime)}<Text style={styles.unitText}>MIN</Text>
+                                    </Text>
+                                </View>
                             </View>
-                            <View style={[styles.statCol, { paddingLeft: 32 }]}>
-                                <Text style={styles.statLabel}>Avg. Workout</Text>
-                                <Text style={[styles.statValue, { color: '#64D2FF' }]}>
-                                    {formatDuration(avgWorkoutTime)}<Text style={styles.unitText}>MIN</Text>
-                                </Text>
+
+                            <View style={styles.divider} />
+
+                            {/* Row 2 */}
+                            <View style={styles.statRow}>
+                                <View style={[styles.statCol, { paddingLeft: 8 }]}>
+                                    <Text style={styles.statLabel}>Total Sets</Text>
+                                    <Text style={[styles.statValue, { color: '#F9104E' }]}>
+                                        {totalSets}<Text style={styles.unitText}>{totalSets === 1 ? 'SET' : 'SETS'}</Text>
+                                    </Text>
+                                </View>
+                                <View style={[styles.statCol, { paddingLeft: 32 }]}>
+                                    <Text style={styles.statLabel}>Total Reps</Text>
+                                    <Text style={[styles.statValue, { color: '#F9104E' }]}>
+                                        {totalReps}<Text style={styles.unitText}>{totalReps === 1 ? 'REP' : 'REPS'}</Text>
+                                    </Text>
+                                </View>
+                            </View>
+
+                            <View style={styles.divider} />
+
+                            {/* Row 3 */}
+                            <View style={styles.statRow}>
+                                <View style={[styles.statCol, { paddingLeft: 8 }]}>
+                                    <Text style={styles.statLabel}>Weight</Text>
+                                    <Text style={[styles.statValue, { color: '#A358DF' }]}>
+                                        {item.settings?.weight || '--'}<Text style={styles.unitText}>KG</Text>
+                                    </Text>
+                                </View>
+                                <View style={[styles.statCol, { paddingLeft: 32 }]}>
+                                    <Text style={styles.statLabel}>Elapsed Time</Text>
+                                    <Text style={[styles.statValue, { color: '#9DEC2C' }]}>
+                                        {formatDuration(item.elapsedTime)}<Text style={styles.unitText}>MIN</Text>
+                                    </Text>
+                                </View>
+                            </View>
+
+                            <View style={styles.divider} />
+
+                            {/* Row 4 */}
+                            <View style={styles.statRow}>
+                                <View style={[styles.statCol, { paddingLeft: 8 }]}>
+                                    <Text style={styles.statLabel}>Est. Calories</Text>
+                                    <Text style={[styles.statValue, { color: '#FF9500' }]}>
+                                        {calories}<Text style={styles.unitText}>KCAL</Text>
+                                    </Text>
+                                </View>
+                                <View style={[styles.statCol, { paddingLeft: 32 }]} />
                             </View>
                         </View>
-
-                        <View style={styles.divider} />
-
-                        {/* Row 2 */}
-                        <View style={styles.statRow}>
-                            <View style={[styles.statCol, { paddingLeft: 8 }]}>
-                                <Text style={styles.statLabel}>Total Sets</Text>
-                                <Text style={[styles.statValue, { color: '#F9104E' }]}>
-                                    {totalSets}<Text style={styles.unitText}>{totalSets === 1 ? 'SET' : 'SETS'}</Text>
-                                </Text>
-                            </View>
-                            <View style={[styles.statCol, { paddingLeft: 32 }]}>
-                                <Text style={styles.statLabel}>Total Reps</Text>
-                                <Text style={[styles.statValue, { color: '#F9104E' }]}>
-                                    {totalReps}<Text style={styles.unitText}>{totalReps === 1 ? 'REP' : 'REPS'}</Text>
-                                </Text>
-                            </View>
-                        </View>
-
-                        <View style={styles.divider} />
-
-                        {/* Row 3 */}
-                        <View style={styles.statRow}>
-                            <View style={[styles.statCol, { paddingLeft: 8 }]}>
-                                <Text style={styles.statLabel}>Weight</Text>
-                                <Text style={[styles.statValue, { color: '#A358DF' }]}>
-                                    {item.settings?.weight || '--'}<Text style={styles.unitText}>KG</Text>
-                                </Text>
-                            </View>
-                            <View style={[styles.statCol, { paddingLeft: 32 }]}>
-                                <Text style={styles.statLabel}>Elapsed Time</Text>
-                                <Text style={[styles.statValue, { color: '#9DEC2C' }]}>
-                                    {formatDuration(item.elapsedTime)}<Text style={styles.unitText}>MIN</Text>
-                                </Text>
-                            </View>
-                        </View>
-
-                        <View style={styles.divider} />
-
-                        {/* Row 4 */}
-                        <View style={styles.statRow}>
-                            <View style={[styles.statCol, { paddingLeft: 8 }]}>
-                                <Text style={styles.statLabel}>Est. Calories</Text>
-                                <Text style={[styles.statValue, { color: '#FF9500' }]}>
-                                    {calories}<Text style={styles.unitText}>KCAL</Text>
-                                </Text>
-                            </View>
-                            <View style={[styles.statCol, { paddingLeft: 32 }]} />
-                        </View>
-                    </View>
+                    </LinearGradient>
                 </View>
             )}
 
@@ -198,7 +242,7 @@ const SummaryCard = ({ item, workoutIcon: WorkoutIcon }: { item: WorkoutSummary,
                 <Text style={styles.sectionTitle}>Segments</Text>
                 <Feather name={segmentsOpen ? "chevron-down" : "chevron-right"} size={20} color="#8E8E93" />
             </TouchableOpacity>
-            
+
             {segmentsOpen && (
                 <View style={styles.segmentsCard}>
                     <View style={styles.segmentHeader}>
@@ -231,6 +275,27 @@ export const WorkoutSummaryScreen = ({ route, navigation }: any) => {
     if (!themeContext) return null;
     const { colors } = themeContext;
 
+    // Header Animations
+    const scrollY = React.useRef(new Animated.Value(0)).current;
+
+    const headerBgOpacity = scrollY.interpolate({
+        inputRange: [10, 50],
+        outputRange: [0, 1],
+        extrapolate: 'clamp',
+    });
+
+    const stickyTitleOpacity = scrollY.interpolate({
+        inputRange: [50, 80],
+        outputRange: [0, 1],
+        extrapolate: 'clamp',
+    });
+
+    const stickyTitleTranslateY = scrollY.interpolate({
+        inputRange: [50, 80],
+        outputRange: [10, 0],
+        extrapolate: 'clamp',
+    });
+
     const [summaries, setSummaries] = useState<WorkoutSummary[]>([]);
 
 
@@ -261,7 +326,15 @@ export const WorkoutSummaryScreen = ({ route, navigation }: any) => {
                 const allSummaries: WorkoutSummary[] = JSON.parse(stored);
                 // Filter for this specific workout and sort by date descending
                 const filtered = allSummaries
-                    .filter(s => s.workoutId === workoutId)
+                    .filter((s: any) => {
+                        if (s.workoutId === workoutId) return true;
+                        if (s.workoutId && s.workoutId.includes('_')) {
+                            const parts = s.workoutId.split('_');
+                            return parts[parts.length - 1] === workoutId;
+                        }
+                        return false;
+                    })
+
                     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
                 setSummaries(filtered);
             }
@@ -291,7 +364,7 @@ export const WorkoutSummaryScreen = ({ route, navigation }: any) => {
     // Header içeriğini ListHeaderComponent'e taşı
     const listHeader = (
         <View style={styles.headerRow}>
-            <TouchableOpacity style={styles.headerIconButton} onPress={clearSummaries} hitSlop={{top: 10, left: 10, bottom: 10, right: 10}}>
+            <TouchableOpacity style={styles.headerIconButton} onPress={clearSummaries} hitSlop={{ top: 10, left: 10, bottom: 10, right: 10 }}>
                 <Feather name="trash-2" size={28} color="#FF3B30" />
             </TouchableOpacity>
             {latestSummary && (
@@ -306,13 +379,54 @@ export const WorkoutSummaryScreen = ({ route, navigation }: any) => {
     );
 
     return (
-        <View style={[styles.container, { backgroundColor: '#000' }]}> 
+        <View style={[styles.container, { backgroundColor: '#000' }]}>
             <StatusBar barStyle="light-content" />
-            <FlatList
+
+            {/* Dynamic Blurred Header */}
+            <Animated.View style={styles.headerRow}>
+                <Animated.View style={[styles.headerBlurContainer, { opacity: headerBgOpacity }]}>
+                    <LiquidGlass
+                        style={styles.headerBlur}
+                        blurAmount={15}
+                        borderRadius={0}
+                    >
+                        <View style={{ height: '100%' }} />
+                    </LiquidGlass>
+                </Animated.View>
+
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', zIndex: 1 }}>
+                    <TouchableOpacity style={styles.headerIconButton} onPress={clearSummaries} hitSlop={{ top: 10, left: 10, bottom: 10, right: 10 }}>
+                        <Feather name="trash-2" size={28} color="#FF3B30" />
+                    </TouchableOpacity>
+
+                    <Animated.View style={[styles.headerCenterTitle, { opacity: stickyTitleOpacity, transform: [{ translateY: stickyTitleTranslateY }] }]} pointerEvents="none">
+                        <Text style={styles.stickyTitleText}>{latestSummary ? formatDate(latestSummary.date) : ''}</Text>
+                    </Animated.View>
+
+                    <TouchableOpacity style={styles.headerIconButton} onPress={() => { console.log('Check button pressed'); navigation.navigate('Main', { screen: 'Workout', params: { screen: 'WorkoutMain' } }); }}>
+                        <View style={styles.checkCircle}>
+                            <Feather name="check" size={28} color="#000" />
+                        </View>
+                    </TouchableOpacity>
+                </View>
+            </Animated.View>
+
+            <Animated.FlatList
                 contentContainerStyle={styles.content}
                 data={summaries}
                 keyExtractor={(_, index) => index.toString()}
-                ListHeaderComponent={listHeader}
+                scrollEventThrottle={16}
+                onScroll={Animated.event(
+                    [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+                    { useNativeDriver: true }
+                )}
+                ListHeaderComponent={
+                    <View style={styles.largeTitleContainer}>
+                        {latestSummary && (
+                            <Text style={styles.headerDateText}>{formatDate(latestSummary.date)}</Text>
+                        )}
+                    </View>
+                }
                 ListEmptyComponent={
                     <View style={styles.emptyContainer}>
                         <Text style={[styles.emptyText, { color: '#FFF' }]}>No summary data yet.</Text>
@@ -332,21 +446,53 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     headerRow: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingTop: 10,
+        paddingTop: 60,
         paddingLeft: 10,
         paddingRight: 2,
-        paddingBottom: 10,
+        paddingBottom: 12,
+        zIndex: 100,
+        backgroundColor: 'transparent',
+    },
+    headerBlurContainer: {
+        ...StyleSheet.absoluteFillObject,
+        overflow: 'hidden',
+        zIndex: 0,
+    },
+    headerBlur: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    headerCenterTitle: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1,
+    },
+    stickyTitleText: {
+        color: '#FFF',
+        fontSize: 17,
+        fontWeight: '600',
+    },
+    largeTitleContainer: {
+        paddingHorizontal: 0,
+        paddingBottom: 20,
     },
     headerIconButton: {
         padding: 8,
     },
     content: {
         paddingHorizontal: 16,
-        paddingTop: 40,
-        paddingBottom: 40,
+        paddingTop: 120,
+        paddingBottom: 140,
     },
     summaryContainer: {
         marginBottom: 40,
@@ -424,14 +570,25 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         marginRight: 4,
     },
-    card: {
-        backgroundColor: '#1C1C1E',
-        borderRadius: 24,
-        padding: 12,
+    workoutCardWrapper: {
         marginBottom: 10,
+        borderRadius: 24,
+        overflow: 'hidden',
+    },
+    card: {
+        borderRadius: 24,
+        paddingHorizontal: 12,
+        paddingVertical: 12, // Massively increased for spacing
+        minHeight: 280,      // Massive minHeight to ensure absolutely no clipping
+    },
+    borderGlow: {
+        ...StyleSheet.absoluteFillObject,
+        borderRadius: 24,
+        borderWidth: 1.5,
     },
     statsGrid: {
-        gap: 8,
+        // gap: 8,
+        marginHorizontal: 4,
     },
     statRow: {
         flexDirection: 'row',
@@ -457,7 +614,7 @@ const styles = StyleSheet.create({
     divider: {
         height: 1,
         backgroundColor: '#38383A',
-        marginVertical: 2,
+        marginVertical: 2, // Increased from 2 to 6 to spread content (+8px height total per divider x3 = +24px)
     },
     segmentsCard: {
         backgroundColor: '#1C1C1E',
@@ -519,7 +676,8 @@ const styles = StyleSheet.create({
         opacity: 0.7,
     },
     headerDateText: {
-        fontSize: 18,
+        fontSize: 34,
+        fontWeight: 'bold',
         color: '#ffffffff',
     }
 });

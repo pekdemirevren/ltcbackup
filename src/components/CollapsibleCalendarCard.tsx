@@ -9,12 +9,10 @@ import {
     Platform,
     ScrollView,
     Modal,
-    TextInput,
     Alert,
     ActivityIndicator,
     Animated as RNAnimated,
     Easing as RNEasing,
-    PanResponder,
 } from 'react-native';
 import Animated, {
     useSharedValue,
@@ -35,19 +33,20 @@ import Animated, {
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Feather from 'react-native-vector-icons/Feather';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import { LiquidGlassCard, LiquidGlassMenuItem } from './LiquidGlass';
+import { LiquidGlass, LiquidGlassCard, LiquidGlassMenuItem } from './LiquidGlass';
 import { WORKOUT_DAY_COLORS, WorkoutDayType, loadWorkoutDayCards, setWorkoutDayForDate, getWorkoutDayForDate, WORKOUT_DAY_MUSCLE_GROUPS } from '../utils/WorkoutDayManager';
-import RNCalendarEvents from 'react-native-calendar-events';
+
 import { TimerContext } from '../contexts/TimerContext';
 import YearCalendarModal from './YearCalendarModal';
 import Theme, { colors } from '../constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { allWorkouts, Workout } from '../constants/workoutData';
 import MetricColors from '../constants/MetricColors';
-import { Picker } from '@react-native-picker/picker';
+
 import type { StackNavigationProp } from '@react-navigation/stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useNavigation } from '@react-navigation/native';
+import { useTabBar } from '../contexts/TabBarContext';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -89,11 +88,9 @@ const ALERT_OPTIONS = [
 // Workout days for picker
 const WORKOUT_DAYS: WorkoutDayType[] = [
     'LEG DAY',
-    'CHEST DAY',
-    'SHOULDER DAY',
-    'BACK DAY',
-    'ABS DAY',
-    'BICEPS-TRICEPS DAY',
+    'PUSH DAY',
+    'PULL DAY',
+    'OFF DAY',
 ];
 
 // Repeat options for recurring events
@@ -161,11 +158,669 @@ interface WeekRowProps {
     getWorkoutForDate: (date: Date | null) => WorkoutDayType | null;
     handleDayPress: (date: Date) => void;
     weeksLength: number;
-    isCollapsed: boolean;
+    isCalendarCollapsed: boolean;
     selectionAnim: SharedValue<number>;
     onNavigateToDetail?: (date: Date) => void;
     onCreateEvent?: (date: Date) => void;
 }
+
+const styles = StyleSheet.create({
+    card: {
+        backgroundColor: '#000000',
+    },
+    header: {
+        height: HEADER_HEIGHT,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 8,
+    },
+    backButton: {
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        paddingLeft: 4,
+        paddingRight: 20,
+        height: 48,
+        borderRadius: 24,
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderWidth: 0.8,
+        borderColor: 'rgba(255,255,255,0.18)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+    },
+    yearText: {
+        fontSize: 12,
+        color: '#ffffffff',
+        fontWeight: '600',
+        marginLeft: -4,
+    },
+    backButtonText: {
+        fontSize: 19,
+        fontWeight: '600',
+        marginLeft: 4,
+    },
+    headerRightPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        borderRadius: 25,
+        height: 50,
+        paddingHorizontal: 4,
+        borderWidth: 0.8,
+        borderColor: 'rgba(255, 255, 255, 0.18)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+    },
+    headerRightIcon: {
+        width: 46,
+        height: 46,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    headerRightSeparator: {
+        width: 1,
+        height: 20,
+        backgroundColor: 'rgba(255,255,255,0.12)',
+    },
+    todayButton: {
+        height: 50,
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        borderRadius: 25,
+        paddingHorizontal: 8,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 0.8,
+        borderColor: 'rgba(255, 255, 255, 0.18)',
+    },
+    todayButtonText: {
+        color: '#FFFFFF',
+        fontSize: 17,
+        fontWeight: '500',
+    },
+    navIconsPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        borderRadius: 25,
+        height: 50,
+        paddingHorizontal: 6,
+        borderWidth: 0.8,
+        borderColor: 'rgba(255,255,255,0.18)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+    },
+    navIcon: {
+        width: 44,
+        height: 44,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+
+    monthTitleContainer: {
+        paddingHorizontal: 8,
+        paddingLeft: 18, // January'yi M ile hizala (~10px sağa)
+        paddingTop: 0, // Reset padding
+        paddingBottom: 8,
+        justifyContent: 'center',
+        overflow: 'hidden',
+    },
+    monthTitle: {
+        fontSize: 34,
+        fontWeight: '700',
+        color: '#FFFFFF',
+        letterSpacing: -0.5,
+        marginTop: -5, // Move 5px further up
+    },
+    dateTitleContainer: {
+        display: 'none', // Removed from old position
+    },
+    dayHeader: {
+        paddingHorizontal: 8,
+        paddingVertical: 12,
+        backgroundColor: '#000',
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: '#2C2C2E',
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderBottomColor: '#2C2C2E',
+        zIndex: 5,
+        alignItems: 'center',
+    },
+    dayHeaderText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#FFFFFF',
+    },
+    weekdayRow: {
+        flexDirection: 'row',
+        paddingHorizontal: 0,
+        paddingTop: 0,
+        paddingBottom: 4,
+        borderBottomWidth: 0,
+        borderBottomColor: 'transparent',
+    },
+    weekday: {
+        flex: 1,
+        textAlign: 'center',
+        fontSize: 11,
+        color: '#FFFFFF',
+        fontWeight: '500',
+    },
+    weekendWeekday: {
+        color: '#FFFFFF',
+    },
+    calendarContent: {
+        flex: 1,
+        overflow: 'hidden',
+    },
+    gestureHeader: {
+        width: '100%',
+    },
+    weekPane: {
+        width: SCREEN_WIDTH,
+        flexDirection: 'row',
+        paddingHorizontal: 0,
+    },
+    monthPane: {
+        width: '100%',
+    },
+    weekContainer: {
+        paddingHorizontal: 0, // Parent padding removed (child WeekRow has 16px)
+        position: 'absolute',
+        width: '100%',
+        height: DAY_VIEW_HEIGHT,
+        top: 0, // ✅ 8'den 0'a
+
+        zIndex: 30,
+        overflow: 'visible', // Flying rows için gerekli
+    },
+    monthGrid: {
+        paddingHorizontal: 0,
+        paddingTop: 0,
+        flex: 1, // Allow it to expand
+        overflow: 'visible', // hidden yerine visible
+        zIndex: 20, // 10'dan 20'ye yükseltildi
+    },
+
+    weekRow: {
+        flexDirection: 'row',
+        height: WEEK_ROW_HEIGHT, // Force exact height for snapping stability
+        alignItems: 'center',
+    },
+    weekRowSeparator: {
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderBottomColor: '#2C2C2E', // Slightly darker, cleaner separator
+    },
+    dayCell: {
+        flex: 1,
+        alignItems: 'center',
+        paddingTop: 9, // ✅ Fixed padding for both views
+        height: WEEK_ROW_HEIGHT, // Base height
+    },
+    dayCircle: {
+        width: 42,
+        height: 42,
+        borderRadius: 21,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'transparent',
+    },
+
+    todayCircle: {
+        backgroundColor: '#FF3B30',
+        width: 42,
+        height: 42,
+        borderRadius: 21,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    selectedCircle: {
+        backgroundColor: '#FFFFFF',
+        width: 42,
+        height: 42,
+        borderRadius: 21,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    dayNumber: {
+        fontSize: 19,
+        color: '#FFFFFF',
+        fontWeight: '600',
+    },
+    todayNumber: {
+        color: '#FFFFFF',
+        fontWeight: '700',
+    },
+    dayNumberSelected: {
+        color: '#000000',
+        fontWeight: '700',
+    },
+    weekendDayText: {
+        color: '#666666',
+    },
+    eventLabels: {
+        width: '100%',
+        alignItems: 'center',
+        marginTop: 7, // Reverted to 7 for better spacing
+        gap: 1, // Reverted to 1
+    },
+    eventPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 4,
+        paddingVertical: 4, // Increased to 4
+        borderRadius: 8,
+        width: '90%',
+        minHeight: 20, // Increased
+    },
+    eventDotMini: {
+        width: 4,
+        height: 4,
+        borderRadius: 2,
+        marginRight: 4,
+    },
+    eventText: {
+        fontSize: 12, // Increased to 12
+        color: '#FFFFFF',
+        fontWeight: '600',
+        textAlign: 'left',
+    },
+    moreEvents: {
+        fontSize: 9,
+        color: '#8E8E93',
+        fontWeight: '500',
+    },
+    timelineContainer: {
+        position: 'absolute',
+        top: 60, // DAY_VIEW_HEIGHT
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: '#000',
+        zIndex: 5, // 0'dan 5'e yükseltildi
+    },
+
+    timelinePane: {
+        width: SCREEN_WIDTH,
+        flex: 1,
+    },
+    daySeparator: {
+        height: 1,
+        backgroundColor: '#333',
+        width: '100%',
+    },
+    timeSlot: {
+        height: 50,
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderBottomColor: '#2C2C2E',
+    },
+    timeText: {
+        width: 50,
+        textAlign: 'center',
+        fontSize: 11,
+        color: '#8E8E93',
+        marginTop: -8,
+        fontWeight: '500',
+    },
+    timeLine: {
+        width: 0,
+        height: 0,
+    },
+    slotContent: {
+        flex: 1,
+        paddingHorizontal: 8,
+    },
+    timelineCard: {
+        borderRadius: 8,
+        padding: 8,
+        borderLeftWidth: 4,
+        marginBottom: 4,
+    },
+    timelineCardTitle: {
+        fontSize: 14,
+        fontWeight: '700',
+    },
+    timelineCardTime: {
+        fontSize: 11,
+        color: '#8E8E93',
+        marginTop: 2,
+    },
+    currentTimeContainer: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        height: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        zIndex: 10,
+    },
+    currentTimeDot: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        backgroundColor: '#FF3B30',
+        marginLeft: 55,
+    },
+    currentTimeLine: {
+        flex: 1,
+        height: 2,
+        backgroundColor: '#FF3B30',
+    },
+    currentTimeLabel: {
+        position: 'absolute',
+        left: 2,
+        backgroundColor: '#FF3B30',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 10,
+    },
+    currentTimeText: {
+        color: '#FFF',
+        fontSize: 10,
+        fontWeight: 'bold',
+    },
+    // Multi Day and List Styles
+    multiDayHeaderRow: {
+        flexDirection: 'row',
+        paddingLeft: 50,
+        backgroundColor: '#000',
+        borderBottomWidth: 0.5,
+        borderBottomColor: '#2C2C2E',
+    },
+    multiDayHeaderColumn: {
+        flex: 1,
+        alignItems: 'center',
+        paddingVertical: 10,
+        borderLeftWidth: 0.5,
+        borderLeftColor: '#2C2C2E',
+    },
+    multiDayHeaderText: {
+        color: '#8E8E93',
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    listItem: {
+        backgroundColor: '#1C1C1E',
+        borderRadius: 12,
+        padding: 16,
+        marginBottom: 12,
+        borderLeftWidth: 4,
+    },
+    listItemHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    listItemTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#FFF',
+        flex: 1,
+    },
+    listItemTime: {
+        fontSize: 14,
+        color: '#8E8E93',
+    },
+    listItemTag: {
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 6,
+    },
+    listItemTagText: {
+        fontSize: 10,
+        fontWeight: 'bold',
+        color: '#FFF',
+    },
+    emptyListContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: 60,
+    },
+    emptyListText: {
+        color: '#8E8E93',
+        fontSize: 16,
+        marginTop: 16,
+        textAlign: 'center',
+    },
+    bottomNav: {
+        position: 'absolute',
+        bottom: 120, // Moved up another 10px (from 110)
+        left: 20,
+        right: 20,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        zIndex: 100,
+        borderRadius: 30,
+        padding: 4,
+    },
+    yearPickerContainer: {
+        flex: 1,
+        backgroundColor: '#000000',
+    },
+    yearHeader: {
+        paddingHorizontal: 8,
+        paddingTop: 60,
+        paddingBottom: 16,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    yearTitle: {
+        fontSize: 34,
+        fontWeight: '700',
+        color: '#FF3B30',
+    },
+    yearScroll: {
+        flex: 1,
+    },
+    yearGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        paddingHorizontal: 4,
+    },
+    miniMonth: {
+        width: '33.33%',
+        padding: 4,
+        marginBottom: 16,
+    },
+    miniMonthName: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: '#FF3B30',
+        marginBottom: 4,
+    },
+    miniGrid: {
+        gap: 1,
+    },
+    miniWeek: {
+        flexDirection: 'row',
+        gap: 1,
+    },
+    miniDay: {
+        flex: 1,
+        aspectRatio: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    miniDayText: {
+        fontSize: 9,
+        color: '#FFFFFF',
+    },
+    miniDaySelected: {
+        color: '#FFFFFF',
+    },
+    miniTodayCircle: {
+        backgroundColor: '#FF3B30',
+        width: 14,
+        height: 14,
+        borderRadius: 7,
+        alignItems: 'center',
+        justifyContent: 'center'
+    },
+    miniSelectedCircle: {
+        backgroundColor: '#FFFFFF',
+        width: 14,
+        height: 14,
+        borderRadius: 7,
+        alignItems: 'center',
+        justifyContent: 'center'
+    },
+    miniDayTodayText: {
+        color: '#FFFFFF',
+        fontWeight: '700',
+        fontSize: 8
+    },
+    miniDaySelectedText: {
+        color: '#000000',
+        fontWeight: '700',
+        fontSize: 8
+    },
+    yearBottomNav: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 8,
+        paddingBottom: 72, // Moved up another 10px (from 62)
+        paddingTop: 12,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: '#2C2C2E',
+    },
+    goalMenuOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 1,
+    },
+    goalMenuAnimatedWrapper: {
+        position: 'absolute',
+        zIndex: 100,
+    },
+});
+
+
+
+// Workout Day Picker Modal Styles
+const workoutDayPickerStyles = StyleSheet.create({
+    fullScreenContainer: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 1002,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
+    },
+    modalContainer: {
+        backgroundColor: '#1C1C1E',
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        maxHeight: SCREEN_HEIGHT * 0.7,
+        paddingBottom: 40,
+    },
+    dragHandle: {
+        width: 40,
+        height: 4,
+        backgroundColor: '#666',
+        borderRadius: 2,
+        alignSelf: 'center',
+        marginTop: 10,
+        marginBottom: 10,
+    },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderBottomWidth: 0.5,
+        borderBottomColor: '#333',
+    },
+    closeButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    saveButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(157, 236, 44, 0.15)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    headerTitle: {
+        fontSize: 17,
+        fontWeight: '600',
+        color: '#FFF',
+    },
+    dateSection: {
+        alignItems: 'center',
+        paddingVertical: 20,
+        borderBottomWidth: 0.5,
+        borderBottomColor: '#333',
+    },
+    dateText: {
+        fontSize: 22,
+        fontWeight: '600',
+        color: '#FFF',
+    },
+    dateSubtext: {
+        fontSize: 15,
+        color: '#8E8E93',
+        marginTop: 4,
+    },
+    scrollView: {
+        maxHeight: SCREEN_HEIGHT * 0.45,
+    },
+    gridContainer: {
+        padding: 16,
+        gap: 12,
+    },
+    dayCard: {
+        backgroundColor: '#2C2C2E',
+        borderRadius: 12,
+        padding: 16,
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    dayCardColor: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        marginRight: 14,
+    },
+    dayCardText: {
+        fontSize: 16,
+        fontWeight: '500',
+        color: '#FFF',
+        flex: 1,
+    },
+    checkmarkContainer: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: 'rgba(157, 236, 44, 0.15)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+});
+
 
 // ✅ NEW: STANDALONE DAY CELL COMPONENT
 interface DayCellProps {
@@ -175,7 +830,7 @@ interface DayCellProps {
     selectedWeekIdx: SharedValue<number>;
     selectionAnim: SharedValue<number>;
     selectedDateTimestamp: SharedValue<number>; // NEW: for reactive selection
-    isCollapsed: boolean;
+    isCalendarCollapsed: boolean;
     isToday: (d: Date) => boolean;
     isSelected: (d: Date) => boolean;
     handleDayPress: (d: Date) => void;
@@ -195,7 +850,7 @@ function DayCell({
     selectedWeekIdx,
     selectionAnim,
     selectedDateTimestamp,
-    isCollapsed,
+    isCalendarCollapsed,
     isToday,
     isSelected,
     handleDayPress,
@@ -219,13 +874,13 @@ function DayCell({
     // Sadece seçili satır için beyaz daire görünür olsun
     const selectionCircleStyle = useAnimatedStyle(() => {
         "worklet";
-        const isSelectedWeek = isCollapsed
+        const isSelectedWeek = isCalendarCollapsed
             ? true
             : Math.abs(globalWeekIdx - selectedWeekIdx.value) < 0.5;
 
         if (!isSelectedWeek) return { opacity: 0 };
         return { opacity: selectionAnim.value };
-    }, [globalWeekIdx, isCollapsed]);
+    }, [globalWeekIdx, isCalendarCollapsed]);
 
     return (
         <TouchableOpacity
@@ -316,7 +971,7 @@ function WeekRow({
     getWorkoutForDate,
     handleDayPress,
     weeksLength,
-    isCollapsed,
+    isCalendarCollapsed,
     selectionAnim,
     onNavigateToDetail,
     onCreateEvent,
@@ -451,7 +1106,7 @@ function WeekRow({
                         selectedWeekIdx={selectedWeekIdx}
                         selectedDateTimestamp={selectedDateTimestamp}
                         selectionAnim={selectionAnim}
-                        isCollapsed={isCollapsed}
+                        isCalendarCollapsed={isCalendarCollapsed}
                         isToday={isToday}
                         isSelected={isSelected}
                         handleDayPress={handleDayPress}
@@ -480,7 +1135,6 @@ interface TimeSlotItemProps {
     onCreateEvent?: (date: Date) => void;
     onEventPress?: (event: Event) => void;
     onWorkoutDayPress?: (date: Date, currentWorkoutDay: WorkoutDayType | null) => void;
-    onNavigateToDailyDetail?: (date: Date) => void;
 }
 
 // Helper function to calculate event duration in minutes
@@ -508,7 +1162,6 @@ interface TimeSlotContentProps {
     onCreateEvent?: (date: Date) => void;
     onEventPress?: (event: Event) => void;
     onWorkoutDayPress?: (date: Date, currentWorkoutDay: WorkoutDayType | null) => void;
-    onNavigateToDailyDetail?: (date: Date) => void;
 }
 
 function TimeSlotContent({
@@ -521,7 +1174,6 @@ function TimeSlotContent({
     onCreateEvent,
     onEventPress,
     onWorkoutDayPress,
-    onNavigateToDailyDetail,
 }: TimeSlotContentProps) {
     const slotEvents = dayEvents.filter(event => {
         const eventStartHour = event.startTime ? parseInt(event.startTime.split(':')[0]) : -1;
@@ -542,9 +1194,7 @@ function TimeSlotContent({
             <TouchableOpacity
                 style={[styles.slotContent, { height: SLOT_HEIGHT }]}
                 onPress={() => {
-                    const dateWithTime = new Date(date);
-                    dateWithTime.setHours(hour, 0, 0, 0);
-                    if (onNavigateToDailyDetail) onNavigateToDailyDetail(dateWithTime);
+                    // Navigation removed per user request: calendar timeline should not navigate to DailySummaryDetail
                 }}
                 onLongPress={() => {
                     const dateWithTime = new Date(date);
@@ -629,7 +1279,6 @@ function TimeSlotItem({
     onCreateEvent,
     onEventPress,
     onWorkoutDayPress,
-    onNavigateToDailyDetail,
 }: TimeSlotItemProps) {
     const hour = parseInt(time.split(':')[0]);
     const availableWidth = SCREEN_WIDTH - 50 - 12; // Adjusted for styles.timeText width
@@ -648,7 +1297,6 @@ function TimeSlotItem({
                 onCreateEvent={onCreateEvent}
                 onEventPress={onEventPress}
                 onWorkoutDayPress={onWorkoutDayPress}
-                onNavigateToDailyDetail={onNavigateToDailyDetail}
             />
         </View>
     );
@@ -678,17 +1326,49 @@ export default function CollapsibleCalendarCard({
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [showYearModal, setShowYearModal] = useState(false);
 
-    // Event Detail State (Full Screen with slide animation)
-    const [showEventDetail, setShowEventDetail] = useState(false);
-    const [selectedEventForDetail, setSelectedEventForDetail] = useState<Event | null>(null);
-    const [eventDetailWorkouts, setEventDetailWorkouts] = useState<Workout[]>([]);
-    const [showAlertPicker, setShowAlertPicker] = useState(false);
-    const [showSecondAlertPicker, setShowSecondAlertPicker] = useState(false);
-    const [showDeleteModal, setShowDeleteModal] = useState(false);
+
 
     // Navigation hook as fallback
     const navigationHook = useNavigation<StackNavigationProp<RootStackParamList>>();
     const nav = navigation || navigationHook;
+
+    // Hide bottom tab bar using TabBarContext
+    const { hideTabBar, showTabBar } = useTabBar();
+
+    useEffect(() => {
+        // Method 1: TabBarContext
+        hideTabBar();
+
+        // Method 2: Direct navigation setOptions (backup for native tab bar)
+        nav.getParent()?.setOptions({
+            tabBarStyle: {
+                height: 0,
+                minHeight: 0,
+                maxHeight: 0,
+                display: 'none',
+                opacity: 0,
+                position: 'absolute',
+                bottom: -100,
+            },
+        });
+
+        return () => {
+            showTabBar();
+            // Restore tab bar on unmount
+            nav.getParent()?.setOptions({
+                tabBarStyle: {
+                    backgroundColor: 'rgba(36,43,55,0.8)',
+                    height: 85,
+                    paddingBottom: 5,
+                    paddingTop: 5,
+                    display: 'flex',
+                    opacity: 1,
+                    position: 'relative',
+                    bottom: 0,
+                },
+            });
+        };
+    }, [hideTabBar, showTabBar, nav]);
 
     // Workout Day Picker Modal State (for selecting workout day for a date)
     const [showWorkoutDayPicker, setShowWorkoutDayPicker] = useState(false);
@@ -696,96 +1376,18 @@ export default function CollapsibleCalendarCard({
     const [selectedWorkoutDayForPicker, setSelectedWorkoutDayForPicker] = useState<WorkoutDayType>('LEG DAY');
     const workoutDayPickerSlideAnim = useRef(new RNAnimated.Value(SCREEN_HEIGHT)).current;
 
-    // Event Detail animation for sliding from right
-    const eventDetailSlideAnim = useRef(new RNAnimated.Value(SCREEN_WIDTH)).current;
 
-    // Refs for close handlers (used by PanResponder)
-    const closeEventDetailRef = useRef<() => void>(() => { });
-    const closeCreateEventRef = useRef<() => void>(() => { });
 
-    // Create Event Modal State
-    const [showCreateEvent, setShowCreateEvent] = useState(false);
-    const [createEventDate, setCreateEventDate] = useState<Date>(new Date());
-    const [createEventEndDate, setCreateEventEndDate] = useState<Date>(new Date());
-    const [createEventTitle, setCreateEventTitle] = useState('');
-    const [createEventStartTime, setCreateEventStartTime] = useState('09:00');
-    const [createEventEndTime, setCreateEventEndTime] = useState('10:00');
-    const [editingEventId, setEditingEventId] = useState<string | null>(null);
-    const [selectedWorkoutDay, setSelectedWorkoutDay] = useState<WorkoutDayType>('LEG DAY');
-    const [createEventRepeat, setCreateEventRepeat] = useState('never');
-    const [createEventType, setCreateEventType] = useState<'event' | 'reminder'>('event');
-    const [activePickerField, setActivePickerField] = useState<'startDate' | 'startTime' | 'endDate' | 'endTime' | 'repeat' | 'workout' | null>(null);
-    const [createPickerMonth, setCreatePickerMonth] = useState<Date>(new Date());
+
     const [showViewMenu, setShowViewMenu] = useState(false);
     const [isViewModalVisible, setIsViewModalVisible] = useState(false);
     const [viewMenuPosition, setViewMenuPosition] = useState({ top: 0, right: 20 });
     const viewButtonRef = useRef<View>(null);
     const viewMenuAnimation = useRef(new RNAnimated.Value(0)).current;
 
-    // Create Event animation refs (using React Native Animated for picker heights)
-    const dateTimePickerHeight = useRef(new RNAnimated.Value(0)).current;
-    const workoutPickerHeight = useRef(new RNAnimated.Value(0)).current;
-    const createEventSlideAnim = useRef(new RNAnimated.Value(SCREEN_HEIGHT)).current;
 
-    // Ref for title input auto-focus
-    const titleInputRef = useRef<TextInput>(null);
 
-    // PanResponder for Event Detail swipe-to-close (left edge)
-    const eventDetailPanResponder = useRef(
-        PanResponder.create({
-            onStartShouldSetPanResponder: () => false, // Don't capture taps
-            onMoveShouldSetPanResponder: (_, gestureState) => {
-                // Capture right swipes with sufficient horizontal movement
-                return gestureState.dx > 15 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy * 1.5);
-            },
-            onPanResponderMove: (_, gestureState) => {
-                if (gestureState.dx > 0) {
-                    eventDetailSlideAnim.setValue(gestureState.dx);
-                }
-            },
-            onPanResponderRelease: (_, gestureState) => {
-                if (gestureState.dx > 100 || gestureState.vx > 0.5) {
-                    closeEventDetailRef.current();
-                } else {
-                    RNAnimated.spring(eventDetailSlideAnim, {
-                        toValue: 0,
-                        friction: 20,
-                        tension: 80,
-                        useNativeDriver: true,
-                    }).start();
-                }
-            },
-        })
-    ).current;
 
-    // PanResponder for Create Event swipe-to-close (pull down on header)
-    const createEventPanResponder = useRef(
-        PanResponder.create({
-            onStartShouldSetPanResponder: () => true,
-            onMoveShouldSetPanResponder: (_, gestureState) => {
-                // Detect vertical swipe down
-                return gestureState.dy > 10 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
-            },
-            onPanResponderGrant: () => { },
-            onPanResponderMove: (_, gestureState) => {
-                if (gestureState.dy > 0) {
-                    createEventSlideAnim.setValue(gestureState.dy);
-                }
-            },
-            onPanResponderRelease: (_, gestureState) => {
-                if (gestureState.dy > 100 || gestureState.vy > 0.3) {
-                    closeCreateEventRef.current();
-                } else {
-                    RNAnimated.spring(createEventSlideAnim, {
-                        toValue: 0,
-                        friction: 25,
-                        tension: 100,
-                        useNativeDriver: true,
-                    }).start();
-                }
-            },
-        })
-    ).current;
 
     // Update state when props change (for navigating back from event detail)
     useEffect(() => {
@@ -1350,260 +1952,13 @@ export default function CollapsibleCalendarCard({
         return schedule[dateKey] || null;
     };
 
-    // Load workout cards when selected event changes
-    useEffect(() => {
-        const loadWorkouts = async () => {
-            if (!selectedEventForDetail || !selectedEventForDetail.workoutDay) {
-                setWorkoutCards([]);
-                return;
-            }
-
-            const dayType = selectedEventForDetail.workoutDay;
-            const savedIds = await loadWorkoutDayCards(dayType);
-
-            if (savedIds.length > 0) {
-                const cards = savedIds
-                    .map(id => allWorkouts.find(w => w.workoutId === id))
-                    .filter((w): w is Workout => w !== undefined);
-                setWorkoutCards(cards);
-            } else {
-                // Default Fallback
-                const muscleGroups = WORKOUT_DAY_MUSCLE_GROUPS[dayType];
-                if (muscleGroups) {
-                    const defaultCards = allWorkouts.filter(w => muscleGroups.includes(w.muscleGroup)).slice(0, 4);
-                    setWorkoutCards(defaultCards);
-                } else {
-                    setWorkoutCards(allWorkouts.slice(0, 4));
-                }
-            }
-        };
-
-        loadWorkouts();
-    }, [selectedEventForDetail?.workoutDay]);
-
-    // Event Detail Modal States for Liquid Glass Menus
-    const [showCalendarMenu, setShowCalendarMenu] = useState(false);
-    const [isCalendarModalVisible, setIsCalendarModalVisible] = useState(false);
-    const [calendarMenuPosition, setCalendarMenuPosition] = useState({ top: 0, right: 20 });
-    const calendarButtonRef = useRef<View>(null);
-    const calendarMenuAnimation = useRef(new RNAnimated.Value(0)).current;
-
-    // Calendar Data States
-    const [deviceCalendars, setDeviceCalendars] = useState<DeviceCalendar[]>([]);
-    const [calendarPermission, setCalendarPermission] = useState<boolean>(false);
-    const [loadingCalendars, setLoadingCalendars] = useState<boolean>(false);
-
-    // Workout Cards State
-    const [workoutCards, setWorkoutCards] = useState<Workout[]>([]);
-
-    const [showAlertMenu, setShowAlertMenu] = useState(false);
-    const [isAlertModalVisible, setIsAlertModalVisible] = useState(false);
-    const [alertMenuPosition, setAlertMenuPosition] = useState({ top: 0, right: 20 });
-    const alertButtonRef = useRef<View>(null);
-    const alertMenuAnimation = useRef(new RNAnimated.Value(0)).current;
-
-    const [showSecondAlertMenu, setShowSecondAlertMenu] = useState(false);
-    const [isSecondAlertModalVisible, setIsSecondAlertModalVisible] = useState(false);
-    const [secondAlertMenuPosition, setSecondAlertMenuPosition] = useState({ top: 0, right: 20 });
-    const secondAlertButtonRef = useRef<View>(null);
-    const secondAlertMenuAnimation = useRef(new RNAnimated.Value(0)).current;
-
-    // Delete Menu Animation States (matching DailyWorkoutDetailScreen)
-    const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
-    const [deleteMenuPosition, setDeleteMenuPosition] = useState({ top: 0, right: 20 });
-    const deleteButtonRef = useRef<View>(null);
-    const deleteMenuAnimation = useRef(new RNAnimated.Value(0)).current;
-
-    // Calendar Menu Animation Effect
-    useEffect(() => {
-        if (showCalendarMenu) {
-            setIsCalendarModalVisible(true);
-            RNAnimated.spring(calendarMenuAnimation, {
-                toValue: 1,
-                useNativeDriver: true,
-                damping: 25,
-                stiffness: 300,
-            }).start();
-        } else {
-            RNAnimated.spring(calendarMenuAnimation, {
-                toValue: 0,
-                useNativeDriver: true,
-                damping: 25,
-                stiffness: 300,
-            }).start(() => {
-                setIsCalendarModalVisible(false);
-            });
-        }
-    }, [showCalendarMenu]);
-
-    // Alert Menu Animation Effect
-    useEffect(() => {
-        if (showAlertMenu) {
-            setIsAlertModalVisible(true);
-            RNAnimated.spring(alertMenuAnimation, {
-                toValue: 1,
-                useNativeDriver: true,
-                damping: 25,
-                stiffness: 300,
-            }).start();
-        } else {
-            RNAnimated.spring(alertMenuAnimation, {
-                toValue: 0,
-                useNativeDriver: true,
-                damping: 25,
-                stiffness: 300,
-            }).start(() => {
-                setIsAlertModalVisible(false);
-            });
-        }
-    }, [showAlertMenu]);
-
-    // Second Alert Menu Animation Effect
-    useEffect(() => {
-        if (showSecondAlertMenu) {
-            setIsSecondAlertModalVisible(true);
-            RNAnimated.spring(secondAlertMenuAnimation, {
-                toValue: 1,
-                useNativeDriver: true,
-                damping: 25,
-                stiffness: 300,
-            }).start();
-        } else {
-            RNAnimated.spring(secondAlertMenuAnimation, {
-                toValue: 0,
-                useNativeDriver: true,
-                damping: 25,
-                stiffness: 300,
-            }).start(() => {
-                setIsSecondAlertModalVisible(false);
-            });
-        }
-    }, [showSecondAlertMenu]);
-
-    // Delete Menu Animation Effect (matching DailyWorkoutDetailScreen)
-    useEffect(() => {
-        if (showDeleteModal) {
-            setIsDeleteModalVisible(true);
-            RNAnimated.spring(deleteMenuAnimation, {
-                toValue: 1,
-                useNativeDriver: true,
-                damping: 25,
-                stiffness: 300,
-            }).start();
-        } else {
-            RNAnimated.spring(deleteMenuAnimation, {
-                toValue: 0,
-                useNativeDriver: true,
-                damping: 25,
-                stiffness: 300,
-            }).start(() => {
-                setIsDeleteModalVisible(false);
-            });
-        }
-    }, [showDeleteModal]);
-
-    // Calendar Logic
-    const checkCalendarPermission = async () => {
-        try {
-            const status = await RNCalendarEvents.checkPermissions();
-            if (status === 'authorized') {
-                setCalendarPermission(true);
-            }
-        } catch (error) {
-            console.error('Error checking calendar permission:', error);
-        }
-    };
-
-    const requestCalendarPermission = async () => {
-        try {
-            const status = await RNCalendarEvents.requestPermissions();
-            if (status === 'authorized') {
-                setCalendarPermission(true);
-                loadDeviceCalendars();
-            }
-        } catch (error) {
-            console.error('Error requesting calendar permission:', error);
-        }
-    };
-
-    const loadDeviceCalendars = async () => {
-        setLoadingCalendars(true);
-        try {
-            const calendars = await RNCalendarEvents.findCalendars();
-            const writableCalendars = calendars
-                .filter(cal => cal.allowsModifications)
-                .map(cal => ({
-                    id: cal.id,
-                    title: cal.title,
-                    color: cal.color || '#007AFF',
-                    source: cal.source || 'Local',
-                }));
-            setDeviceCalendars(writableCalendars);
-        } catch (error) {
-            console.error('Error loading calendars:', error);
-        } finally {
-            setLoadingCalendars(false);
-        }
-    };
-
-    const handleCalendarSelect = (calendarId: string) => {
-        if (selectedEventForDetail) {
-            const updatedEvent = { ...selectedEventForDetail, calendar: calendarId };
-            setSelectedEventForDetail(updatedEvent);
-            saveEventUpdate(updatedEvent);
-        }
-        setShowCalendarMenu(false);
-    };
-
-    const handleWorkoutPress = (workout: Workout) => {
-        // Use logic from DailyWorkoutDetailScreen
-        if (nav) {
-            // Do NOT close modal first, navigate directly
-            nav.navigate('GenericWorkoutSettingsScreen', {
-                workoutId: workout.workoutId,
-                workoutName: workout.name,
-            });
-        }
-    };
 
 
 
-    useEffect(() => {
-        checkCalendarPermission();
-    }, []);
 
-    // Menu Handlers
-    const handleOpenCalendarMenu = () => {
-        if (!calendarPermission) {
-            requestCalendarPermission();
-            // Don't open menu yet, wait for permission
-            return;
-        }
 
-        loadDeviceCalendars();
 
-        calendarButtonRef.current?.measureInWindow((x, y, width, height) => {
-            // Safe adjustment: place menu below the button
-            setCalendarMenuPosition({ top: y + height + 8, right: 20 });
-            setShowCalendarMenu(true);
-        });
-    };
 
-    const handleOpenAlertMenu = () => {
-        alertButtonRef.current?.measureInWindow((x, y, width, height) => {
-            // Safe adjustment: place menu below the button
-            setAlertMenuPosition({ top: y + height + 8, right: 20 });
-            setShowAlertMenu(true);
-        });
-    };
-
-    const handleOpenSecondAlertMenu = () => {
-        secondAlertButtonRef.current?.measureInWindow((x, y, width, height) => {
-            // Safe adjustment: place menu below the button
-            setSecondAlertMenuPosition({ top: y + height + 8, right: 20 });
-            setShowSecondAlertMenu(true);
-        });
-    };
 
     const handleOpenViewMenu = () => {
         if (viewButtonRef.current) {
@@ -1631,28 +1986,6 @@ export default function CollapsibleCalendarCard({
         timelineHorizontalScrollViewRef.current?.scrollTo({ x: width, animated: false });
     }, [daySubMode]);
 
-    useEffect(() => {
-        if (showViewMenu) {
-            setIsViewModalVisible(true);
-            RNAnimated.spring(viewMenuAnimation, {
-                toValue: 1,
-                useNativeDriver: true,
-                damping: 25,
-                stiffness: 300,
-            }).start(() => {
-            });
-        } else {
-            RNAnimated.spring(viewMenuAnimation, {
-                toValue: 0,
-                useNativeDriver: true,
-                damping: 25,
-                stiffness: 300,
-            }).start(() => {
-                setIsViewModalVisible(false);
-            });
-        }
-    }, [showViewMenu]);
-
     const viewMenuScale = viewMenuAnimation.interpolate({ inputRange: [0, 1], outputRange: [0.1, 1] });
     const viewMenuTranslateX = viewMenuAnimation.interpolate({ inputRange: [0, 1], outputRange: [110, 0] });
     const viewMenuTranslateY = viewMenuAnimation.interpolate({ inputRange: [0, 1], outputRange: [0, 0] });
@@ -1674,27 +2007,7 @@ export default function CollapsibleCalendarCard({
 
 
 
-    // Interpolations for Menus
-    const calendarMenuScale = calendarMenuAnimation.interpolate({ inputRange: [0, 1], outputRange: [0.1, 1] });
-    const calendarMenuTranslateX = calendarMenuAnimation.interpolate({ inputRange: [0, 1], outputRange: [110, 0] });
-    const calendarMenuTranslateY = calendarMenuAnimation.interpolate({ inputRange: [0, 1], outputRange: [50, 0] });
-    const calendarMenuOpacity = calendarMenuAnimation.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
 
-    const alertMenuScale = alertMenuAnimation.interpolate({ inputRange: [0, 1], outputRange: [0.1, 1] });
-    const alertMenuTranslateX = alertMenuAnimation.interpolate({ inputRange: [0, 1], outputRange: [110, 0] });
-    const alertMenuTranslateY = alertMenuAnimation.interpolate({ inputRange: [0, 1], outputRange: [50, 0] });
-    const alertMenuOpacity = alertMenuAnimation.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
-
-    const secondAlertMenuScale = secondAlertMenuAnimation.interpolate({ inputRange: [0, 1], outputRange: [0.1, 1] });
-    const secondAlertMenuTranslateX = secondAlertMenuAnimation.interpolate({ inputRange: [0, 1], outputRange: [110, 0] });
-    const secondAlertMenuTranslateY = secondAlertMenuAnimation.interpolate({ inputRange: [0, 1], outputRange: [50, 0] });
-    const secondAlertMenuOpacity = secondAlertMenuAnimation.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
-
-    // Delete Menu Interpolations
-    const deleteMenuScale = deleteMenuAnimation.interpolate({ inputRange: [0, 1], outputRange: [0.1, 1] });
-    const deleteMenuTranslateX = deleteMenuAnimation.interpolate({ inputRange: [0, 1], outputRange: [110, 0] });
-    const deleteMenuTranslateY = deleteMenuAnimation.interpolate({ inputRange: [0, 1], outputRange: [50, 0] });
-    const deleteMenuOpacity = deleteMenuAnimation.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
 
     // ─────────────────────────────────────────────────────────────────────────────
     // Helper to scroll timeline to specific time with animation
@@ -1910,53 +2223,13 @@ export default function CollapsibleCalendarCard({
     // ═══════════════════════════════════════════════════════════════
 
     const handleEventPress = async (event: Event) => {
-        setSelectedEventForDetail(event);
-
-        // Load workouts for this event
-        if (event.workoutIds && event.workoutIds.length > 0) {
-            const eventWorkouts = allWorkouts.filter((w: Workout) =>
-                event.workoutIds!.includes(w.workoutId)
-            );
-            setEventDetailWorkouts(eventWorkouts);
-        } else if (event.workoutDay) {
-            // Load from workout day cards
-            const dayCards = await loadWorkoutDayCards(event.workoutDay);
-            const dayWorkouts = allWorkouts.filter((w: Workout) =>
-                dayCards.includes(w.workoutId)
-            ).slice(0, 4);
-            setEventDetailWorkouts(dayWorkouts.length > 0 ? dayWorkouts : allWorkouts.slice(0, 4));
-        } else {
-            setEventDetailWorkouts(allWorkouts.slice(0, 4));
-        }
-
-        // Show and animate from right
-        setShowEventDetail(true);
-        RNAnimated.spring(eventDetailSlideAnim, {
-            toValue: 0,
-            friction: 25,
-            tension: 100,
-            useNativeDriver: true,
-        }).start();
+        (navigation as any).navigate('WorkoutEventDetail', {
+            eventId: event.id,
+            date: event.date
+        });
     };
 
-    const handleCloseEventDetail = useCallback(() => {
-        // Animate out to right
-        RNAnimated.timing(eventDetailSlideAnim, {
-            toValue: SCREEN_WIDTH,
-            duration: 300,
-            easing: RNEasing.ease,
-            useNativeDriver: true,
-        }).start(() => {
-            setShowEventDetail(false);
-            setSelectedEventForDetail(null);
-            setEventDetailWorkouts([]);
-        });
-    }, [eventDetailSlideAnim]);
 
-    // Update ref when handler changes
-    useEffect(() => {
-        closeEventDetailRef.current = handleCloseEventDetail;
-    }, [handleCloseEventDetail]);
 
     // ═══════════════════════════════════════════════════════════════
     // WORKOUT DAY PICKER HANDLERS
@@ -1965,21 +2238,8 @@ export default function CollapsibleCalendarCard({
     const handleWorkoutDayPress = async (date: Date, currentWorkoutDay: WorkoutDayType | null) => {
         if (!currentWorkoutDay) return;
 
-        // Close calendar and navigate to DailyWorkoutDetail
-        if (onFullScreenPress) {
-            onFullScreenPress();
-        }
+        // Navigation and fullscreen close removed per user request: calendar timeline should not navigate to DailySummaryDetail
 
-        // Navigate to DailyWorkoutDetail screen
-        if (nav) {
-            nav.navigate('DailyWorkoutDetail', {
-                workoutDay: currentWorkoutDay,
-                currentDay: date.getDay() === 0 ? 7 : date.getDay(), // Convert Sunday from 0 to 7
-                totalDays: 7,
-                dailyCalorieGoal: 1000,
-                date: date.toISOString()
-            });
-        }
     };
 
     const handleCloseWorkoutDayPicker = useCallback(() => {
@@ -2016,451 +2276,38 @@ export default function CollapsibleCalendarCard({
         }
     };
 
-    const handleEditEvent = () => {
-        if (selectedEventForDetail) {
-            const eventDate = new Date(selectedEventForDetail.date);
-            setEditingEventId(selectedEventForDetail.id);
-            setCreateEventTitle(selectedEventForDetail.title);
-            setCreateEventDate(eventDate);
-            setCreateEventEndDate(eventDate);
-            setCreateEventStartTime(selectedEventForDetail.startTime || '09:00');
-            setCreateEventEndTime(selectedEventForDetail.endTime || '10:00');
-            setSelectedWorkoutDay(selectedEventForDetail.workoutDay || 'LEG DAY');
-            setCreateEventRepeat('never');
-            setCreateEventType('event');
-            setActivePickerField(null);
-            setCreatePickerMonth(eventDate);
 
-            // Reset picker heights
-            dateTimePickerHeight.setValue(0);
-            workoutPickerHeight.setValue(0);
 
-            // Close event detail without animation (since we're opening create)
-            setShowEventDetail(false);
-            eventDetailSlideAnim.setValue(SCREEN_WIDTH);
 
-            setShowCreateEvent(true);
-
-            // Animate from bottom
-            RNAnimated.spring(createEventSlideAnim, {
-                toValue: 0,
-                friction: 25,
-                tension: 100,
-                useNativeDriver: true,
-            }).start();
-
-            // Focus title input immediately
-            setTimeout(() => {
-                titleInputRef.current?.focus();
-            }, 50);
-        }
-    };
-
-    const handleDeleteEvent = () => {
-        if (!selectedEventForDetail) return;
-        deleteButtonRef.current?.measureInWindow((x, y, width, height) => {
-            setDeleteMenuPosition({ top: y - 75, right: 20 });
-            setShowDeleteModal(true);
-        });
-    };
-
-    const handleDeleteThisEventOnly = async () => {
-        if (!selectedEventForDetail) return;
-
-        try {
-            const stored = await AsyncStorage.getItem(EVENTS_STORAGE_KEY);
-            if (stored) {
-                let storedEvents: Event[] = JSON.parse(stored);
-                storedEvents = storedEvents.filter(e => e.id !== selectedEventForDetail.id);
-                await AsyncStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(storedEvents));
-                onEventsChange && onEventsChange(storedEvents);
-            }
-            setShowDeleteModal(false);
-            handleCloseEventDetail();
-        } catch (error) {
-            console.error('Error deleting event:', error);
-        }
-    };
-
-    const handleDeleteAllFutureEvents = async () => {
-        if (!selectedEventForDetail) return;
-
-        try {
-            const stored = await AsyncStorage.getItem(EVENTS_STORAGE_KEY);
-            if (stored) {
-                let storedEvents: Event[] = JSON.parse(stored);
-                const currentDate = new Date(selectedEventForDetail.date);
-
-                // Delete this event and all future events with the same workout day
-                storedEvents = storedEvents.filter(e => {
-                    if (e.id === selectedEventForDetail.id) return false;
-                    if (e.workoutDay === selectedEventForDetail.workoutDay) {
-                        const eventDate = new Date(e.date);
-                        if (eventDate >= currentDate) return false;
-                    }
-                    return true;
-                });
-
-                await AsyncStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(storedEvents));
-                onEventsChange && onEventsChange(storedEvents);
-            }
-            setShowDeleteModal(false);
-            handleCloseEventDetail();
-        } catch (error) {
-            console.error('Error deleting events:', error);
-        }
-    };
-
-    const handleAlertChange = (minutes: number) => {
-        if (selectedEventForDetail) {
-            const updatedEvent = { ...selectedEventForDetail, alertMinutes: minutes };
-            setSelectedEventForDetail(updatedEvent);
-            saveEventUpdate(updatedEvent);
-        }
-        setShowAlertPicker(false);
-    };
-
-    const handleSecondAlertChange = (minutes: number) => {
-        if (selectedEventForDetail) {
-            const updatedEvent = { ...selectedEventForDetail, secondAlertMinutes: minutes };
-            setSelectedEventForDetail(updatedEvent);
-            saveEventUpdate(updatedEvent);
-        }
-        setShowSecondAlertPicker(false);
-    };
-
-    const saveEventUpdate = async (updatedEvent: Event) => {
-        try {
-            const stored = await AsyncStorage.getItem(EVENTS_STORAGE_KEY);
-            let storedEvents: Event[] = stored ? JSON.parse(stored) : [];
-
-            const existingIndex = storedEvents.findIndex(e => e.id === updatedEvent.id);
-            if (existingIndex >= 0) {
-                storedEvents[existingIndex] = updatedEvent;
-            } else {
-                storedEvents.push(updatedEvent);
-            }
-
-            await AsyncStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(storedEvents));
-            onEventsChange && onEventsChange(storedEvents);
-        } catch (error) {
-            console.error('Error saving event:', error);
-        }
-    };
-
-    const getAlertLabel = (minutes: number | undefined): string => {
-        if (minutes === undefined) return 'None';
-        const option = ALERT_OPTIONS.find(o => o.value === minutes);
-        return option?.label || 'None';
-    };
-
-    // Create Event helper functions
-    const formatTimeFromDate = (date: Date): string => {
-        return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-    };
-
-    const formatDateShort = (date: Date): string => {
-        return `${date.getDate()} ${MONTHS_SHORT[date.getMonth()]} ${date.getFullYear()}`;
-    };
-
-    // Toggle picker animations for Create Event
-    const toggleDateTimePicker = (field: 'startDate' | 'startTime' | 'endDate' | 'endTime' | 'repeat' | null) => {
-        // Close workout picker if open
-        if (activePickerField === 'workout') {
-            RNAnimated.timing(workoutPickerHeight, {
-                toValue: 0,
-                duration: 200,
-                easing: RNEasing.ease,
-                useNativeDriver: false,
-            }).start();
-        }
-
-        if (activePickerField === field) {
-            // Close picker
-            setActivePickerField(null);
-            RNAnimated.timing(dateTimePickerHeight, {
-                toValue: 0,
-                duration: 300,
-                easing: RNEasing.ease,
-                useNativeDriver: false,
-            }).start();
-        } else {
-            // Open picker
-            setActivePickerField(field);
-            const height = field === 'startDate' || field === 'endDate' ? 320 : field === 'repeat' ? 220 : 220;
-            RNAnimated.timing(dateTimePickerHeight, {
-                toValue: height,
-                duration: 300,
-                easing: RNEasing.ease,
-                useNativeDriver: false,
-            }).start();
-        }
-    };
-
-    const toggleWorkoutPicker = () => {
-        const isOpen = activePickerField === 'workout';
-
-        // Close datetime picker if open
-        if (activePickerField && activePickerField !== 'workout') {
-            RNAnimated.timing(dateTimePickerHeight, {
-                toValue: 0,
-                duration: 200,
-                easing: RNEasing.ease,
-                useNativeDriver: false,
-            }).start();
-        }
-
-        if (isOpen) {
-            setActivePickerField(null);
-            RNAnimated.timing(workoutPickerHeight, {
-                toValue: 0,
-                duration: 300,
-                easing: RNEasing.ease,
-                useNativeDriver: false,
-            }).start();
-        } else {
-            setActivePickerField('workout');
-            RNAnimated.timing(workoutPickerHeight, {
-                toValue: 220,
-                duration: 300,
-                easing: RNEasing.ease,
-                useNativeDriver: false,
-            }).start();
-        }
-    };
-
-    // Calendar picker helpers for Create Event
-    const getCreateEventDaysInMonth = (date: Date) => {
-        const year = date.getFullYear();
-        const month = date.getMonth();
-        const firstDay = new Date(year, month, 1);
-        const lastDay = new Date(year, month + 1, 0);
-        const daysInMonth = lastDay.getDate();
-
-        let startDayOfWeek = firstDay.getDay() - 1;
-        if (startDayOfWeek < 0) startDayOfWeek = 6;
-
-        const days: (Date | null)[] = [];
-        for (let i = 0; i < startDayOfWeek; i++) {
-            days.push(null);
-        }
-        for (let i = 1; i <= daysInMonth; i++) {
-            days.push(new Date(year, month, i));
-        }
-        return days;
-    };
-
-    const isDateSelected = (date: Date, targetDate: Date): boolean => {
-        return date.getDate() === targetDate.getDate() &&
-            date.getMonth() === targetDate.getMonth() &&
-            date.getFullYear() === targetDate.getFullYear();
-    };
-
-    const isTodayCheck = (date: Date): boolean => {
-        const today = new Date();
-        return date.getDate() === today.getDate() &&
-            date.getMonth() === today.getMonth() &&
-            date.getFullYear() === today.getFullYear();
-    };
-
-    const handleCreateDateSelect = (day: Date, isStart: boolean) => {
-        if (isStart) {
-            const newDate = new Date(createEventDate);
-            newDate.setFullYear(day.getFullYear());
-            newDate.setMonth(day.getMonth());
-            newDate.setDate(day.getDate());
-            setCreateEventDate(newDate);
-        } else {
-            const newDate = new Date(createEventEndDate);
-            newDate.setFullYear(day.getFullYear());
-            newDate.setMonth(day.getMonth());
-            newDate.setDate(day.getDate());
-            setCreateEventEndDate(newDate);
-        }
-    };
-
-    // Time picker values
-    const hours = useMemo(() => Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')), []);
-    const minutes = useMemo(() => ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'], []);
-
-    const createEventCalendarDays = useMemo(() => getCreateEventDaysInMonth(createPickerMonth), [createPickerMonth]);
 
     const handleNavigateToDailyDetail = (date: Date) => {
+        // Navigation removed per user request: calendar should not navigate to DailySummaryDetail
+        /*
         const dateStr = date.toISOString().split('T')[0];
-        nav.navigate('DailyWorkoutDetail', {
+        nav.navigate('DailySummaryDetail', {
             workoutDay: selectedWorkoutDay,
             date: dateStr,
         });
+        */
     };
 
     const handleOpenCreateEvent = (date: Date) => {
-        setEditingEventId(null);
-        setCreateEventDate(date);
-        const endDate = new Date(date);
-        endDate.setHours(endDate.getHours() + 1);
-        setCreateEventEndDate(endDate);
-        setCreateEventTitle('');
-        setCreateEventStartTime('09:00');
-        setCreateEventEndTime('10:00');
-        setSelectedWorkoutDay('LEG DAY');
-        setCreateEventRepeat('never');
-        setCreateEventType('event');
-        setActivePickerField(null);
-        setCreatePickerMonth(date);
-
-        // Reset picker heights
-        dateTimePickerHeight.setValue(0);
-        workoutPickerHeight.setValue(0);
-
-        // Show modal and animate from bottom
-        setShowCreateEvent(true);
-        RNAnimated.spring(createEventSlideAnim, {
-            toValue: 0,
-            friction: 25,
-            tension: 100,
-            useNativeDriver: true,
-        }).start();
-
-        // Focus title input immediately
-        setTimeout(() => {
-            titleInputRef.current?.focus();
-        }, 50);
-    };
-
-    const handleCloseCreateEvent = useCallback(() => {
-        // Animate out to bottom
-        RNAnimated.timing(createEventSlideAnim, {
-            toValue: SCREEN_HEIGHT,
-            duration: 300,
-            easing: RNEasing.ease,
-            useNativeDriver: true,
-        }).start(() => {
-            setShowCreateEvent(false);
-            setEditingEventId(null);
-            setCreateEventTitle('');
-            setActivePickerField(null);
-        });
-    }, [createEventSlideAnim]);
-
-    // Update ref when handler changes
-    useEffect(() => {
-        closeCreateEventRef.current = handleCloseCreateEvent;
-    }, [handleCloseCreateEvent]);
-
-    // Generate repeated events
-    const generateRepeatedEvents = (baseEvent: Event, repeatType: string): Event[] => {
-        const events: Event[] = [baseEvent];
-        if (repeatType === 'never') return events;
-
-        const baseDate = new Date(baseEvent.date);
-        const endRepeatDate = new Date(baseDate);
-        endRepeatDate.setFullYear(endRepeatDate.getFullYear() + 1);
-
-        let currentDate = new Date(baseDate);
-        let counter = 1;
-
-        while (currentDate < endRepeatDate && counter < 365) {
-            switch (repeatType) {
-                case 'daily':
-                    currentDate.setDate(currentDate.getDate() + 1);
-                    break;
-                case 'weekly':
-                    currentDate.setDate(currentDate.getDate() + 7);
-                    break;
-                case 'biweekly':
-                    currentDate.setDate(currentDate.getDate() + 14);
-                    break;
-                case 'monthly':
-                    currentDate.setMonth(currentDate.getMonth() + 1);
-                    break;
-                case 'yearly':
-                    currentDate.setFullYear(currentDate.getFullYear() + 1);
-                    break;
-                default:
-                    return events;
-            }
-
-            if (currentDate >= endRepeatDate) break;
-
-            const repeatedEvent: Event = {
-                ...baseEvent,
-                id: `event_${Date.now()}_${counter}`,
-                date: new Date(currentDate).toISOString(),
-            };
-            events.push(repeatedEvent);
-            counter++;
-        }
-
-        return events;
-    };
-
-    const handleSaveEvent = async () => {
-        const title = createEventTitle.trim() || selectedWorkoutDay.toLowerCase().replace(' day', '') + ' day';
-
-        try {
-            const stored = await AsyncStorage.getItem(EVENTS_STORAGE_KEY);
-            let storedEvents: Event[] = stored ? JSON.parse(stored) : [];
-
-            const newEvent: Event = {
-                id: editingEventId || `event-${Date.now()}`,
-                title: title,
-                workoutDay: selectedWorkoutDay,
-                date: createEventDate.toISOString(),
-                startTime: createEventStartTime,
-                endTime: createEventEndTime,
-                alertMinutes: 30,
-            };
-
-            if (editingEventId) {
-                // Update existing event
-                const existingIndex = storedEvents.findIndex(e => e.id === editingEventId);
-                if (existingIndex >= 0) {
-                    storedEvents[existingIndex] = { ...storedEvents[existingIndex], ...newEvent };
-                }
-            } else {
-                // Generate repeated events for new event
-                const allEvents = generateRepeatedEvents(newEvent, createEventRepeat);
-                storedEvents = [...storedEvents, ...allEvents];
-            }
-
-            await AsyncStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(storedEvents));
-            onEventsChange && onEventsChange(storedEvents);
-            handleCloseCreateEvent();
-
-            // Navigate to DailyWorkoutDetail after save
-            nav.navigate('DailyWorkoutDetail', {
-                workoutDay: newEvent.workoutDay,
-                date: newEvent.date.split('T')[0],
-                eventId: newEvent.id
+        if (onCreateEvent) {
+            onCreateEvent(date);
+        } else {
+            (navigation as any).navigate('CreateWorkoutEventScreen', {
+                date: date.toISOString()
             });
-        } catch (error) {
-            console.error('Error saving event:', error);
         }
     };
 
-    const handleDeleteCreateEvent = async () => {
-        if (!editingEventId) return;
 
-        try {
-            const stored = await AsyncStorage.getItem(EVENTS_STORAGE_KEY);
-            let storedEvents: Event[] = stored ? JSON.parse(stored) : [];
-            storedEvents = storedEvents.filter(e => e.id !== editingEventId);
-            await AsyncStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(storedEvents));
-            onEventsChange && onEventsChange(storedEvents);
-            handleCloseCreateEvent();
-        } catch (error) {
-            console.error('Error deleting event:', error);
-        }
-    };
 
-    const formatEventDetailDate = (dateStr: string): string => {
-        const d = new Date(dateStr);
-        const day = d.getDate();
-        const month = d.toLocaleString('en-US', { month: 'short' });
-        const year = d.getFullYear();
-        const weekday = d.toLocaleString('en-US', { weekday: 'long' });
-        return `${day} ${month} ${year} ${weekday}`;
-    };
+
+
+
+
+
 
     const formatHeaderDate = (dateStr: string): string => {
         const d = new Date(dateStr);
@@ -2673,7 +2520,6 @@ export default function CollapsibleCalendarCard({
                                                         onCreateEvent={handleOpenCreateEvent}
                                                         onEventPress={handleEventPress}
                                                         onWorkoutDayPress={handleWorkoutDayPress}
-                                                        onNavigateToDailyDetail={handleNavigateToDailyDetail}
                                                     />
                                                 </View>
                                             ))}
@@ -2721,7 +2567,6 @@ export default function CollapsibleCalendarCard({
                                 onCreateEvent={handleOpenCreateEvent}
                                 onEventPress={handleEventPress}
                                 onWorkoutDayPress={handleWorkoutDayPress}
-                                onNavigateToDailyDetail={handleNavigateToDailyDetail}
                             />
                         );
                     })}
@@ -2755,7 +2600,7 @@ export default function CollapsibleCalendarCard({
                 selectedWeekIdx={selectedWeekIdx}
                 selectedDateTimestamp={selectedDateTimestamp}
                 selectionAnim={selectionAnim}
-                isCollapsed={isCollapsed}
+                isCalendarCollapsed={isCollapsed}
                 isToday={isToday}
                 isSelected={isSelected}
                 handleDayPress={handleDayPress}
@@ -2793,7 +2638,7 @@ export default function CollapsibleCalendarCard({
                 getWorkoutForDate={getWorkoutForDate}
                 handleDayPress={handleDayPress}
                 weeksLength={weeks.length}
-                isCollapsed={isCollapsed}
+                isCalendarCollapsed={isCollapsed}
                 selectionAnim={selectionAnim}
                 onNavigateToDetail={handleNavigateToDailyDetail}
                 onCreateEvent={handleOpenCreateEvent}
@@ -2848,12 +2693,12 @@ export default function CollapsibleCalendarCard({
                                         />
                                     </TouchableOpacity>
                                     <View style={styles.headerRightSeparator} />
-                                    <TouchableOpacity onPress={() => { }} style={styles.headerRightIcon} activeOpacity={1}>
-                                        <Feather name="search" size={20} color="#FFF" />
-                                    </TouchableOpacity>
-                                    <View style={styles.headerRightSeparator} />
                                     <TouchableOpacity onPress={() => handleOpenCreateEvent(selectedDate)} style={styles.headerRightIcon} activeOpacity={1}>
                                         <Feather name="plus" size={24} color="#FFF" />
+                                    </TouchableOpacity>
+                                    <View style={styles.headerRightSeparator} />
+                                    <TouchableOpacity onPress={onFullScreenPress} style={styles.headerRightIcon} activeOpacity={1}>
+                                        <Feather name="x" size={22} color="#FFF" />
                                     </TouchableOpacity>
                                 </RNAnimated.View>
                             </View>
@@ -2947,26 +2792,20 @@ export default function CollapsibleCalendarCard({
                     {/* Calendar View Modal */}
                     <Modal
                         transparent
-                        visible={isViewModalVisible}
-                        animationType="none"
+                        visible={showViewMenu}
+                        animationType="fade"
                         onRequestClose={() => setShowViewMenu(false)}
                     >
                         <TouchableWithoutFeedback onPress={() => setShowViewMenu(false)}>
-                            <View style={eventDetailStyles.goalMenuOverlay} />
+                            <View style={styles.goalMenuOverlay} />
                         </TouchableWithoutFeedback>
 
-                        <RNAnimated.View
+                        <View
                             style={[
-                                eventDetailStyles.goalMenuAnimatedWrapper,
+                                styles.goalMenuAnimatedWrapper,
                                 {
                                     top: viewMenuPosition.top,
                                     right: viewMenuPosition.right,
-                                    opacity: viewMenuOpacity,
-                                    transform: [
-                                        { translateX: viewMenuTranslateX },
-                                        { translateY: viewMenuTranslateY },
-                                        { scale: viewMenuScale }
-                                    ],
                                 }
                             ]}
                             pointerEvents="auto"
@@ -2991,7 +2830,7 @@ export default function CollapsibleCalendarCard({
                                     showCheck={daySubMode === 'list'}
                                 />
                             </LiquidGlassCard>
-                        </RNAnimated.View>
+                        </View>
                     </Modal>
 
                     {/* Week Selector Modal */}
@@ -3034,23 +2873,27 @@ export default function CollapsibleCalendarCard({
 
                 {/* Bottom navigation */}
                 <View style={styles.bottomNav}>
-                    <TouchableOpacity onPress={handleTodayPress} style={styles.todayButton} activeOpacity={1}>
-                        <Text style={styles.todayButtonText}>Today</Text>
-                    </TouchableOpacity>
+                    <LiquidGlass borderRadius={25} onPress={handleTodayPress}>
+                        <View style={styles.todayButton}>
+                            <Text style={styles.todayButtonText}>Today</Text>
+                        </View>
+                    </LiquidGlass>
 
-                    <View style={styles.navIconsPill}>
-                        <TouchableOpacity
-                            onPress={() => setShowYearPicker(true)}
-                            style={styles.navIcon}
-                            activeOpacity={1}
-                        >
-                            <Feather name="calendar" size={18} color="#FFF" />
-                        </TouchableOpacity>
-                        <View style={styles.headerRightSeparator} />
-                        <TouchableOpacity style={styles.navIcon} activeOpacity={1}>
-                            <Feather name="archive" size={18} color="#FFF" />
-                        </TouchableOpacity>
-                    </View>
+                    <LiquidGlass borderRadius={25}>
+                        <View style={styles.navIconsPill}>
+                            <TouchableOpacity
+                                onPress={() => setShowYearPicker(true)}
+                                style={styles.navIcon}
+                                activeOpacity={1}
+                            >
+                                <Feather name="calendar" size={18} color="#FFF" />
+                            </TouchableOpacity>
+                            <View style={styles.headerRightSeparator} />
+                            <TouchableOpacity style={styles.navIcon} activeOpacity={1}>
+                                <Feather name="archive" size={18} color="#FFF" />
+                            </TouchableOpacity>
+                        </View>
+                    </LiquidGlass>
                 </View >
             </Animated.View >
 
@@ -3065,12 +2908,12 @@ export default function CollapsibleCalendarCard({
                     <View style={styles.yearHeader}>
                         <Text style={styles.yearTitle}>{selectedDate.getFullYear()}</Text>
                         <View style={styles.headerRightPill}>
-                            <TouchableOpacity onPress={() => { }} style={styles.headerRightIcon}>
-                                <Feather name="search" size={18} color="#FFF" />
-                            </TouchableOpacity>
-                            <View style={styles.headerRightSeparator} />
                             <TouchableOpacity onPress={() => handleOpenCreateEvent(selectedDate)} style={styles.headerRightIcon}>
                                 <Feather name="plus" size={22} color="#FFF" />
+                            </TouchableOpacity>
+                            <View style={styles.headerRightSeparator} />
+                            <TouchableOpacity onPress={() => setShowYearPicker(false)} style={styles.headerRightIcon}>
+                                <Feather name="x" size={20} color="#FFF" />
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -3100,466 +2943,32 @@ export default function CollapsibleCalendarCard({
                     </ScrollView>
 
                     <View style={styles.yearBottomNav}>
-                        <TouchableOpacity onPress={handleTodayPress} style={styles.todayButton}>
-                            <Text style={styles.todayButtonText}>Today</Text>
-                        </TouchableOpacity>
+                        <LiquidGlass borderRadius={25} onPress={handleTodayPress}>
+                            <View style={styles.todayButton}>
+                                <Text style={styles.todayButtonText}>Today</Text>
+                            </View>
+                        </LiquidGlass>
 
-                        <View style={styles.navIconsPill}>
-                            <TouchableOpacity
-                                onPress={handleYearPress}
-                                style={styles.navIcon}
-                            >
-                                <Feather name="calendar" size={18} color="#FFF" />
-                            </TouchableOpacity>
-                            <View style={styles.headerRightSeparator} />
-                            <TouchableOpacity style={styles.navIcon}>
-                                <Feather name="archive" size={18} color="#FFF" />
-                            </TouchableOpacity>
-                        </View>
+                        <LiquidGlass borderRadius={25}>
+                            <View style={styles.navIconsPill}>
+                                <TouchableOpacity
+                                    onPress={handleYearPress}
+                                    style={styles.navIcon}
+                                >
+                                    <Feather name="calendar" size={18} color="#FFF" />
+                                </TouchableOpacity>
+                                <View style={styles.headerRightSeparator} />
+                                <TouchableOpacity style={styles.navIcon}>
+                                    <Feather name="archive" size={18} color="#FFF" />
+                                </TouchableOpacity>
+                            </View>
+                        </LiquidGlass>
                     </View>
                 </View>
             </Modal >
 
             {/* ═══════════════════════════════════════════════════════════════ */}
-            {/* EVENT DETAIL - Full Screen with Right Slide Animation */}
-            {/* ═══════════════════════════════════════════════════════════════ */}
-            {showEventDetail && selectedEventForDetail && (
-                <>
-                    <RNAnimated.View
-                        style={[
-                            eventDetailStyles.fullScreenContainer,
-                            { transform: [{ translateX: eventDetailSlideAnim }] }
-                        ]}
-                        {...eventDetailPanResponder.panHandlers}
-                    >
-                        <View style={eventDetailStyles.container}>
-                            {/* Header */}
-                            <View style={eventDetailStyles.header}>
-                                <TouchableOpacity
-                                    style={eventDetailStyles.circularIconButton}
-                                    onPress={handleCloseEventDetail}
-                                >
-                                    <Feather name="chevron-left" size={22} color="#FFF" />
-                                    <Text style={eventDetailStyles.backButtonText}>
-                                        {formatHeaderDate(selectedEventForDetail.date)}
-                                    </Text>
-                                </TouchableOpacity>
 
-                                <TouchableOpacity
-                                    style={eventDetailStyles.circularIconButton}
-                                    onPress={handleEditEvent}
-                                >
-                                    <Feather name="edit-2" size={18} color="#FFF" />
-                                </TouchableOpacity>
-                            </View>
-
-                            <ScrollView style={eventDetailStyles.content} showsVerticalScrollIndicator={false}>
-                                {/* Event Title */}
-                                <Text style={eventDetailStyles.eventTitle}>{selectedEventForDetail.title}</Text>
-
-                                {/* Date & Time */}
-                                <Text style={eventDetailStyles.dateText}>
-                                    {formatEventDetailDate(selectedEventForDetail.date)}
-                                </Text>
-                                <Text style={eventDetailStyles.timeText}>
-                                    {selectedEventForDetail.startTime || '09:00'} – {selectedEventForDetail.endTime || '10:00'}
-                                </Text>
-
-                                {/* Timeline Block */}
-                                {(() => {
-                                    const startHour = parseInt((selectedEventForDetail.startTime || '09:00').split(':')[0]);
-                                    const startMin = parseInt((selectedEventForDetail.startTime || '09:00').split(':')[1]);
-                                    const endHour = parseInt((selectedEventForDetail.endTime || '10:00').split(':')[0]);
-                                    const endMin = parseInt((selectedEventForDetail.endTime || '10:00').split(':')[1]);
-                                    const HOUR_HEIGHT = 50;
-                                    const LINE_OFFSET = 8; // marginTop of hourSeparator
-                                    const VERTICAL_PADDING = 16;
-                                    const hoursToShow: number[] = [];
-                                    for (let h = startHour; h <= endHour + 1; h++) {
-                                        hoursToShow.push(h % 24);
-                                    }
-                                    const startOffset = startMin / 60 * HOUR_HEIGHT;
-                                    const durationMinutes = (endHour - startHour) * 60 + (endMin - startMin);
-                                    const eventHeight = (durationMinutes / 60) * HOUR_HEIGHT;
-                                    const eventColor = selectedEventForDetail.workoutDay
-                                        ? WORKOUT_DAY_COLORS[selectedEventForDetail.workoutDay]
-                                        : '#4A90D9';
-
-                                    return (
-                                        <View style={eventDetailStyles.timelineContainer}>
-                                            {hoursToShow.map((hour, index) => {
-                                                const isLastRow = index === hoursToShow.length - 1;
-                                                return (
-                                                    <View key={`${hour}-${index}`} style={[eventDetailStyles.hourRow, { height: isLastRow ? 16 : HOUR_HEIGHT }]}>
-                                                        <Text style={eventDetailStyles.hourLabel}>{String(hour).padStart(2, '0')}:00</Text>
-                                                        <View style={eventDetailStyles.hourSeparator} />
-                                                    </View>
-                                                );
-                                            })}
-
-                                            <View style={[
-                                                eventDetailStyles.eventBlock,
-                                                {
-                                                    backgroundColor: eventColor,
-                                                    position: 'absolute',
-                                                    left: 16 + 50 + 10,
-                                                    right: 16,
-                                                    top: 24 + LINE_OFFSET + startOffset,
-                                                    height: eventHeight,
-                                                }
-                                            ]}>
-                                                <Text style={eventDetailStyles.eventBlockTitle}>{selectedEventForDetail.title}</Text>
-                                                <View style={eventDetailStyles.eventBlockTimeRow}>
-                                                    <Feather name="clock" size={12} color="rgba(255,255,255,0.7)" />
-                                                    <Text style={eventDetailStyles.eventBlockTime}>
-                                                        {selectedEventForDetail.startTime || '09:00'} – {selectedEventForDetail.endTime || '10:00'}
-                                                    </Text>
-                                                </View>
-                                            </View>
-                                        </View>
-                                    );
-                                })()}
-
-                                {/* Settings Container (Calendar, Alert, Second Alert) */}
-                                <View style={eventDetailStyles.settingsButtonsContainer}>
-                                    {/* Calendar Button (Mocked for UI consistency) */}
-                                    <View style={eventDetailStyles.settingButtonRow}>
-                                        <View style={eventDetailStyles.settingLabelContainer}>
-                                            <Text style={eventDetailStyles.settingLabel}>Calendar</Text>
-                                        </View>
-                                        <TouchableOpacity
-                                            ref={calendarButtonRef}
-                                            style={eventDetailStyles.settingValueRow}
-                                            onPress={handleOpenCalendarMenu}
-                                            disabled={showCalendarMenu}
-                                            activeOpacity={0.7}
-                                        >
-                                            <Text style={eventDetailStyles.settingValue}>
-                                                {!calendarPermission
-                                                    ? 'Tap to access'
-                                                    : deviceCalendars.find(c => c.id === selectedEventForDetail.calendar)?.title || 'Default'
-                                                }
-                                            </Text>
-                                            <Feather name="chevron-down" size={20} color="rgba(255,255,255,0.6)" />
-                                        </TouchableOpacity>
-                                    </View>
-
-                                    <View style={eventDetailStyles.settingSeparator} />
-
-                                    {/* Alert Button */}
-                                    <View style={eventDetailStyles.settingButtonRow}>
-                                        <View style={eventDetailStyles.settingLabelContainer}>
-                                            <Text style={eventDetailStyles.settingLabel}>Alert</Text>
-                                        </View>
-                                        <TouchableOpacity
-                                            ref={alertButtonRef}
-                                            style={eventDetailStyles.settingValueRow}
-                                            onPress={handleOpenAlertMenu}
-                                            disabled={showAlertMenu}
-                                            activeOpacity={0.7}
-                                        >
-                                            <Text style={eventDetailStyles.settingValue}>
-                                                {getAlertLabel(selectedEventForDetail.alertMinutes)}
-                                            </Text>
-                                            <Feather name="chevron-down" size={20} color="rgba(255,255,255,0.6)" />
-                                        </TouchableOpacity>
-                                    </View>
-
-                                    <View style={eventDetailStyles.settingSeparator} />
-
-                                    {/* Second Alert Button */}
-                                    <View style={eventDetailStyles.settingButtonRow}>
-                                        <View style={eventDetailStyles.settingLabelContainer}>
-                                            <Text style={eventDetailStyles.settingLabel}>Second Alert</Text>
-                                        </View>
-                                        <TouchableOpacity
-                                            ref={secondAlertButtonRef}
-                                            style={eventDetailStyles.settingValueRow}
-                                            onPress={handleOpenSecondAlertMenu}
-                                            disabled={showSecondAlertMenu}
-                                            activeOpacity={0.7}
-                                        >
-                                            <Text style={eventDetailStyles.settingValue}>
-                                                {getAlertLabel(selectedEventForDetail.secondAlertMinutes)}
-                                            </Text>
-                                            <Feather name="chevron-down" size={20} color="rgba(255,255,255,0.6)" />
-                                        </TouchableOpacity>
-                                    </View>
-                                </View>
-
-                                {/* Workout Section (Replica of DailyWorkoutDetailScreen) */}
-                                {workoutCards.length > 0 && (
-                                    <View style={eventDetailStyles.workoutsSection}>
-                                        <View style={eventDetailStyles.sectionHeaderRow}>
-                                            <Text style={eventDetailStyles.sectionTitle}>Workouts</Text>
-                                            <TouchableOpacity>
-                                                <Text style={eventDetailStyles.seeAllText}>See All</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                        <View style={eventDetailStyles.workoutGrid}>
-                                            {workoutCards.slice(0, 4).map((workout) => {
-                                                const SvgIcon = workout.SvgIcon;
-                                                // Determine event color
-                                                const eventColor = selectedEventForDetail.workoutDay
-                                                    ? WORKOUT_DAY_COLORS[selectedEventForDetail.workoutDay]
-                                                    : '#4A90D9';
-
-                                                return (
-                                                    <TouchableOpacity
-                                                        key={workout.workoutId}
-                                                        style={eventDetailStyles.workoutCard}
-                                                        onPress={() => handleWorkoutPress(workout)}
-                                                        activeOpacity={0.8}
-                                                    >
-                                                        <View style={[eventDetailStyles.cardIconContainer, { backgroundColor: eventColor + '30' }]}>
-                                                            {SvgIcon && <SvgIcon width={40} height={40} fill={eventColor} />}
-                                                        </View>
-                                                        <Text style={eventDetailStyles.cardTitle} numberOfLines={2}>
-                                                            {workout.name}
-                                                        </Text>
-                                                    </TouchableOpacity>
-                                                );
-                                            })}
-                                        </View>
-                                    </View>
-                                )}
-
-                                {/* Additional Spacing */}
-                                <View style={{ height: 20 }} />
-
-                                {/* Delete Button (matching DailyWorkoutDetailScreen) */}
-                                <View style={eventDetailStyles.deleteButtonContainer}>
-                                    <TouchableOpacity
-                                        ref={deleteButtonRef}
-                                        onPress={handleDeleteEvent}
-                                        style={eventDetailStyles.deleteButton}
-                                        activeOpacity={0.7}
-                                    >
-                                        <Text style={eventDetailStyles.deleteButtonText}>Delete Workout</Text>
-                                    </TouchableOpacity>
-                                </View>
-
-                                <View style={{ height: 40 }} />
-                            </ScrollView>
-                        </View>
-                    </RNAnimated.View>
-
-                    {/* Calendar Menu Modal */}
-                    <Modal
-                        transparent
-                        visible={isCalendarModalVisible}
-                        animationType="none"
-                        onRequestClose={() => setIsCalendarModalVisible(false)}
-                    >
-                        <TouchableWithoutFeedback onPress={() => setIsCalendarModalVisible(false)}>
-                            <View style={eventDetailStyles.goalMenuOverlay} />
-                        </TouchableWithoutFeedback>
-
-                        <RNAnimated.View
-                            style={[
-                                eventDetailStyles.goalMenuAnimatedWrapper,
-                                {
-                                    top: calendarMenuPosition.top,
-                                    right: calendarMenuPosition.right,
-                                    opacity: calendarMenuOpacity,
-                                    transform: [
-                                        { translateX: calendarMenuTranslateX },
-                                        { translateY: calendarMenuTranslateY },
-                                        { scale: calendarMenuScale }
-                                    ],
-                                }
-                            ]}
-                            pointerEvents="auto"
-                        >
-                            <LiquidGlassCard
-                                borderRadius={28}
-                                width={260}
-                            >
-                                {loadingCalendars ? (
-                                    <LiquidGlassMenuItem
-                                        label="Loading calendars..."
-                                        onPress={() => { }}
-                                    />
-                                ) : deviceCalendars.length === 0 ? (
-                                    <LiquidGlassMenuItem
-                                        label="No calendars found"
-                                        onPress={() => setShowCalendarMenu(false)}
-                                    />
-                                ) : (
-                                    <ScrollView style={{ maxHeight: 350 }} showsVerticalScrollIndicator={false}>
-                                        {deviceCalendars.map((calendar) => (
-                                            <LiquidGlassMenuItem
-                                                key={calendar.id}
-                                                icon={
-                                                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: calendar.color }} />
-                                                }
-                                                label={calendar.title}
-                                                onPress={() => handleCalendarSelect(calendar.id)}
-                                                iconWidth={20}
-                                            />
-                                        ))}
-                                    </ScrollView>
-                                )}
-                            </LiquidGlassCard>
-                        </RNAnimated.View>
-                    </Modal>
-
-                    {/* Alert Menu Modal */}
-                    <Modal
-                        transparent
-                        visible={isAlertModalVisible}
-                        animationType="none"
-                        onRequestClose={() => setShowAlertMenu(false)}
-                    >
-                        <TouchableWithoutFeedback onPress={() => setShowAlertMenu(false)}>
-                            <View style={eventDetailStyles.goalMenuOverlay} />
-                        </TouchableWithoutFeedback>
-
-                        <RNAnimated.View
-                            style={[
-                                eventDetailStyles.goalMenuAnimatedWrapper,
-                                {
-                                    top: alertMenuPosition.top,
-                                    right: alertMenuPosition.right,
-                                    opacity: alertMenuOpacity,
-                                    transform: [
-                                        { translateX: alertMenuTranslateX },
-                                        { translateY: alertMenuTranslateY },
-                                        { scale: alertMenuScale }
-                                    ],
-                                }
-                            ]}
-                            pointerEvents="auto"
-                        >
-                            <LiquidGlassCard
-                                borderRadius={28}
-                                width={260}
-                            >
-                                <ScrollView style={{ maxHeight: 350 }} showsVerticalScrollIndicator={false}>
-                                    {ALERT_OPTIONS.map((opt) => (
-                                        <LiquidGlassMenuItem
-                                            key={opt.value}
-                                            icon={
-                                                selectedEventForDetail.alertMinutes === opt.value
-                                                    ? <MaterialCommunityIcons name="check" size={20} color="#9DEC2C" />
-                                                    : undefined
-                                            }
-                                            label={opt.label}
-                                            onPress={() => {
-                                                handleAlertChange(opt.value);
-                                                setShowAlertMenu(false);
-                                            }}
-                                        />
-                                    ))}
-                                </ScrollView>
-                            </LiquidGlassCard>
-                        </RNAnimated.View>
-                    </Modal>
-
-                    {/* Second Alert Menu Modal */}
-                    <Modal
-                        transparent
-                        visible={isSecondAlertModalVisible}
-                        animationType="none"
-                        onRequestClose={() => setShowSecondAlertMenu(false)}
-                    >
-                        <TouchableWithoutFeedback onPress={() => setShowSecondAlertMenu(false)}>
-                            <View style={eventDetailStyles.goalMenuOverlay} />
-                        </TouchableWithoutFeedback>
-
-                        <RNAnimated.View
-                            style={[
-                                eventDetailStyles.goalMenuAnimatedWrapper,
-                                {
-                                    top: secondAlertMenuPosition.top,
-                                    right: secondAlertMenuPosition.right,
-                                    opacity: secondAlertMenuOpacity,
-                                    transform: [
-                                        { translateX: secondAlertMenuTranslateX },
-                                        { translateY: secondAlertMenuTranslateY },
-                                        { scale: secondAlertMenuScale }
-                                    ],
-                                }
-                            ]}
-                            pointerEvents="auto"
-                        >
-                            <LiquidGlassCard
-                                borderRadius={28}
-                                width={260}
-                            >
-                                <ScrollView style={{ maxHeight: 350 }} showsVerticalScrollIndicator={false}>
-                                    {ALERT_OPTIONS.map((opt) => (
-                                        <LiquidGlassMenuItem
-                                            key={opt.value}
-                                            icon={
-                                                selectedEventForDetail.secondAlertMinutes === opt.value
-                                                    ? <MaterialCommunityIcons name="check" size={20} color="#9DEC2C" />
-                                                    : undefined
-                                            }
-                                            label={opt.label}
-                                            onPress={() => {
-                                                handleSecondAlertChange(opt.value);
-                                                setShowSecondAlertMenu(false);
-                                            }}
-                                        />
-                                    ))}
-                                </ScrollView>
-                            </LiquidGlassCard>
-                        </RNAnimated.View>
-                    </Modal>
-
-                    {/* Delete Confirmation Modal (matching DailyWorkoutDetailScreen) */}
-                    <Modal
-                        transparent
-                        visible={isDeleteModalVisible}
-                        animationType="none"
-                        onRequestClose={() => setShowDeleteModal(false)}
-                    >
-                        <TouchableWithoutFeedback onPress={() => setShowDeleteModal(false)}>
-                            <View style={eventDetailStyles.goalMenuOverlay} />
-                        </TouchableWithoutFeedback>
-
-                        <RNAnimated.View
-                            style={[
-                                eventDetailStyles.goalMenuAnimatedWrapper,
-                                {
-                                    top: deleteMenuPosition.top,
-                                    right: deleteMenuPosition.right,
-                                    opacity: deleteMenuOpacity,
-                                    transform: [
-                                        { translateX: deleteMenuTranslateX },
-                                        { translateY: deleteMenuTranslateY },
-                                        { scale: deleteMenuScale }
-                                    ],
-                                }
-                            ]}
-                            pointerEvents="auto"
-                        >
-                            <LiquidGlassCard borderRadius={28} width={260}>
-                                <LiquidGlassMenuItem
-                                    label="Delete This Event Only"
-                                    textColor="#FF3B30"
-                                    textAlign="center"
-                                    onPress={handleDeleteThisEventOnly}
-                                />
-                                {selectedEventForDetail?.workoutDay && (
-                                    <LiquidGlassMenuItem
-                                        label="Delete All Future Events"
-                                        textColor="#FF3B30"
-                                        textAlign="center"
-                                        onPress={handleDeleteAllFutureEvents}
-                                    />
-                                )}
-                                <LiquidGlassMenuItem
-                                    label="Cancel"
-                                    textAlign="center"
-                                    onPress={() => setShowDeleteModal(false)}
-                                />
-                            </LiquidGlassCard>
-                        </RNAnimated.View>
-                    </Modal>
-                </>
-            )}
 
             {/* ═══════════════════════════════════════════════════════════════ */}
             {/* WORKOUT DAY PICKER - Select workout day for a specific date */}
@@ -3650,415 +3059,7 @@ export default function CollapsibleCalendarCard({
                 </Modal>
             )}
 
-            {/* ═══════════════════════════════════════════════════════════════ */}
-            {/* CREATE EVENT - Full Screen with Bottom Slide Animation */}
-            {/* ═══════════════════════════════════════════════════════════════ */}
-            {showCreateEvent && (
-                <RNAnimated.View
-                    style={[
-                        createEventStyles.fullScreenContainer,
-                        { transform: [{ translateY: createEventSlideAnim }] }
-                    ]}
-                >
-                    {/* Full Screen Container - iOS Calendar style */}
-                    <View style={createEventStyles.modalContainer}>
-                        {/* Drag Handle Area */}
-                        <View {...createEventPanResponder.panHandlers} style={createEventStyles.dragHandleArea}>
-                            <View style={createEventStyles.dragHandle} />
-                        </View>
 
-                        {/* Header */}
-                        <View style={createEventStyles.header}>
-                            <TouchableOpacity onPress={handleCloseCreateEvent} style={createEventStyles.circularIconButton}>
-                                <Feather name="x" size={24} color="#FFF" />
-                            </TouchableOpacity>
-
-                            <Text style={createEventStyles.headerTitle}>
-                                {editingEventId ? 'Edit Workout' : 'New Workout'}
-                            </Text>
-
-                            <TouchableOpacity onPress={handleSaveEvent} style={createEventStyles.circularAddButton}>
-                                <Feather name="check" size={24} color="#FFF" />
-                            </TouchableOpacity>
-                        </View>
-
-                        {/* Event/Reminder Toggle */}
-                        <View style={createEventStyles.toggleContainer}>
-                            <TouchableOpacity
-                                style={[createEventStyles.toggleButton, createEventType === 'event' && createEventStyles.toggleButtonActive]}
-                                onPress={() => setCreateEventType('event')}
-                            >
-                                <Text style={[createEventStyles.toggleText, createEventType === 'event' && createEventStyles.toggleTextActive]}>
-                                    Event
-                                </Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[createEventStyles.toggleButton, createEventType === 'reminder' && createEventStyles.toggleButtonActive]}
-                                onPress={() => setCreateEventType('reminder')}
-                            >
-                                <Text style={[createEventStyles.toggleText, createEventType === 'reminder' && createEventStyles.toggleTextActive]}>
-                                    Reminder
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        <ScrollView style={createEventStyles.content} showsVerticalScrollIndicator={false}>
-                            {/* Main Attributes Card (Title + Workout Type) */}
-                            <View style={[createEventStyles.inputCard, activePickerField === 'workout' && createEventStyles.cardExpanded]}>
-                                <TextInput
-                                    ref={titleInputRef}
-                                    style={createEventStyles.titleInput}
-                                    placeholder="Title"
-                                    placeholderTextColor="#8E8E93"
-                                    value={createEventTitle}
-                                    onChangeText={setCreateEventTitle}
-                                    autoFocus={false}
-                                />
-                                <View style={createEventStyles.separator} />
-                                <TouchableOpacity onPress={toggleWorkoutPicker} activeOpacity={0.8}>
-                                    <View style={createEventStyles.rowContent}>
-                                        <Text style={createEventStyles.rowLabel}>Workout Type</Text>
-                                        <View style={createEventStyles.rowValueContainer}>
-                                            <Text style={createEventStyles.rowValue}>{selectedWorkoutDay}</Text>
-                                            <Feather name="chevron-right" size={18} color="#8E8E93" />
-                                        </View>
-                                    </View>
-                                </TouchableOpacity>
-                            </View>
-
-                            {/* Workout Picker */}
-                            <RNAnimated.View style={[createEventStyles.pickerWrapper, { height: workoutPickerHeight }]}>
-                                <Picker
-                                    selectedValue={selectedWorkoutDay}
-                                    onValueChange={(value) => setSelectedWorkoutDay(value as WorkoutDayType)}
-                                    itemStyle={createEventStyles.pickerItem}
-                                    style={{ height: 200 }}
-                                >
-                                    {WORKOUT_DAYS.map((day) => (
-                                        <Picker.Item key={day} label={day} value={day} />
-                                    ))}
-                                </Picker>
-                            </RNAnimated.View>
-
-                            {/* Date/Time Container */}
-                            <View style={createEventStyles.dateTimeCard}>
-                                {/* Starts Row */}
-                                <View style={createEventStyles.dateTimeRow}>
-                                    <Text style={createEventStyles.dateTimeLabel}>Starts</Text>
-                                    <View style={createEventStyles.dateTimeValues}>
-                                        <TouchableOpacity
-                                            style={[createEventStyles.datePill, activePickerField === 'startDate' && createEventStyles.pillActive]}
-                                            onPress={() => toggleDateTimePicker('startDate')}
-                                        >
-                                            <Text style={[createEventStyles.datePillText, activePickerField === 'startDate' && createEventStyles.pillTextActive]}>
-                                                {formatDateShort(createEventDate)}
-                                            </Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            style={[createEventStyles.timePill, activePickerField === 'startTime' && createEventStyles.timePillActive]}
-                                            onPress={() => toggleDateTimePicker('startTime')}
-                                        >
-                                            <Text style={[createEventStyles.timePillText, activePickerField === 'startTime' && createEventStyles.pillTextActive]}>
-                                                {createEventStartTime}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                </View>
-
-                                {/* Start Date/Time Picker */}
-                                {(activePickerField === 'startDate' || activePickerField === 'startTime') && (
-                                    <RNAnimated.View style={[createEventStyles.inlinePicker, { height: dateTimePickerHeight }]}>
-                                        {activePickerField === 'startDate' ? (
-                                            // Calendar Picker
-                                            <View style={createEventStyles.calendarContainer}>
-                                                {/* Month Navigation */}
-                                                <View style={createEventStyles.monthNav}>
-                                                    <TouchableOpacity onPress={() => {
-                                                        const newMonth = new Date(createPickerMonth);
-                                                        newMonth.setMonth(newMonth.getMonth() - 1);
-                                                        setCreatePickerMonth(newMonth);
-                                                    }}>
-                                                        <Feather name="chevron-left" size={20} color="#007AFF" />
-                                                    </TouchableOpacity>
-                                                    <Text style={createEventStyles.monthNavText}>
-                                                        {MONTHS_FULL[createPickerMonth.getMonth()]} {createPickerMonth.getFullYear()}
-                                                    </Text>
-                                                    <TouchableOpacity onPress={() => {
-                                                        const newMonth = new Date(createPickerMonth);
-                                                        newMonth.setMonth(newMonth.getMonth() + 1);
-                                                        setCreatePickerMonth(newMonth);
-                                                    }}>
-                                                        <Feather name="chevron-right" size={20} color="#007AFF" />
-                                                    </TouchableOpacity>
-                                                </View>
-
-                                                {/* Weekday headers */}
-                                                <View style={createEventStyles.weekdayHeader}>
-                                                    {WEEKDAYS.map((day, index) => (
-                                                        <Text key={index} style={[
-                                                            createEventStyles.weekdayText,
-                                                            index >= 5 && createEventStyles.weekendHeaderText,
-                                                        ]}>
-                                                            {day}
-                                                        </Text>
-                                                    ))}
-                                                </View>
-
-                                                {/* Days grid */}
-                                                <View style={createEventStyles.daysGrid}>
-                                                    {createEventCalendarDays.map((day, index) => {
-                                                        if (!day) {
-                                                            return <View key={`empty-${index}`} style={createEventStyles.dayCell} />;
-                                                        }
-
-                                                        const dayOfWeek = day.getDay();
-                                                        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-                                                        const selected = isDateSelected(day, createEventDate);
-
-                                                        return (
-                                                            <TouchableOpacity
-                                                                key={day.toISOString()}
-                                                                style={createEventStyles.dayCell}
-                                                                onPress={() => handleCreateDateSelect(day, true)}
-                                                            >
-                                                                <View style={[
-                                                                    createEventStyles.dayNumber,
-                                                                    selected && createEventStyles.selectedDayNumber,
-                                                                    isTodayCheck(day) && !selected && createEventStyles.todayDayNumber,
-                                                                ]}>
-                                                                    <Text style={[
-                                                                        createEventStyles.dayText,
-                                                                        isWeekend && !selected && createEventStyles.weekendDayText,
-                                                                        selected && createEventStyles.selectedDayText,
-                                                                    ]}>
-                                                                        {day.getDate()}
-                                                                    </Text>
-                                                                </View>
-                                                            </TouchableOpacity>
-                                                        );
-                                                    })}
-                                                </View>
-                                            </View>
-                                        ) : (
-                                            // Time Picker
-                                            <View style={createEventStyles.timePickerContainer}>
-                                                <Picker
-                                                    selectedValue={createEventStartTime.split(':')[0]}
-                                                    onValueChange={(value) => {
-                                                        const mins = createEventStartTime.split(':')[1];
-                                                        setCreateEventStartTime(`${value}:${mins}`);
-                                                    }}
-                                                    itemStyle={createEventStyles.pickerItem}
-                                                    style={{ flex: 1, height: 200 }}
-                                                >
-                                                    {hours.map((hour) => (
-                                                        <Picker.Item key={hour} label={hour} value={hour} />
-                                                    ))}
-                                                </Picker>
-                                                <Text style={createEventStyles.timeSeparator}>:</Text>
-                                                <Picker
-                                                    selectedValue={createEventStartTime.split(':')[1]}
-                                                    onValueChange={(value) => {
-                                                        const hrs = createEventStartTime.split(':')[0];
-                                                        setCreateEventStartTime(`${hrs}:${value}`);
-                                                    }}
-                                                    itemStyle={createEventStyles.pickerItem}
-                                                    style={{ flex: 1, height: 200 }}
-                                                >
-                                                    {minutes.map((minute) => (
-                                                        <Picker.Item key={minute} label={minute} value={minute} />
-                                                    ))}
-                                                </Picker>
-                                            </View>
-                                        )}
-                                    </RNAnimated.View>
-                                )}
-
-                                <View style={createEventStyles.separator} />
-
-                                {/* Ends Row */}
-                                <View style={createEventStyles.dateTimeRow}>
-                                    <Text style={createEventStyles.dateTimeLabel}>Ends</Text>
-                                    <View style={createEventStyles.dateTimeValues}>
-                                        <TouchableOpacity
-                                            style={[createEventStyles.datePill, activePickerField === 'endDate' && createEventStyles.pillActive]}
-                                            onPress={() => toggleDateTimePicker('endDate')}
-                                        >
-                                            <Text style={[createEventStyles.datePillText, activePickerField === 'endDate' && createEventStyles.pillTextActive]}>
-                                                {formatDateShort(createEventEndDate)}
-                                            </Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            style={[createEventStyles.timePill, activePickerField === 'endTime' && createEventStyles.timePillActive]}
-                                            onPress={() => toggleDateTimePicker('endTime')}
-                                        >
-                                            <Text style={[createEventStyles.timePillText, activePickerField === 'endTime' && createEventStyles.pillTextActive]}>
-                                                {createEventEndTime}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                </View>
-
-                                {/* End Date/Time Picker */}
-                                {(activePickerField === 'endDate' || activePickerField === 'endTime') && (
-                                    <RNAnimated.View style={[createEventStyles.inlinePicker, { height: dateTimePickerHeight }]}>
-                                        {activePickerField === 'endDate' ? (
-                                            // Calendar Picker
-                                            <View style={createEventStyles.calendarContainer}>
-                                                {/* Month Navigation */}
-                                                <View style={createEventStyles.monthNav}>
-                                                    <TouchableOpacity onPress={() => {
-                                                        const newMonth = new Date(createPickerMonth);
-                                                        newMonth.setMonth(newMonth.getMonth() - 1);
-                                                        setCreatePickerMonth(newMonth);
-                                                    }}>
-                                                        <Feather name="chevron-left" size={20} color="#007AFF" />
-                                                    </TouchableOpacity>
-                                                    <Text style={createEventStyles.monthNavText}>
-                                                        {MONTHS_FULL[createPickerMonth.getMonth()]} {createPickerMonth.getFullYear()}
-                                                    </Text>
-                                                    <TouchableOpacity onPress={() => {
-                                                        const newMonth = new Date(createPickerMonth);
-                                                        newMonth.setMonth(newMonth.getMonth() + 1);
-                                                        setCreatePickerMonth(newMonth);
-                                                    }}>
-                                                        <Feather name="chevron-right" size={20} color="#007AFF" />
-                                                    </TouchableOpacity>
-                                                </View>
-
-                                                {/* Weekday headers */}
-                                                <View style={createEventStyles.weekdayHeader}>
-                                                    {WEEKDAYS.map((day, index) => (
-                                                        <Text key={index} style={[
-                                                            createEventStyles.weekdayText,
-                                                            index >= 5 && createEventStyles.weekendHeaderText,
-                                                        ]}>
-                                                            {day}
-                                                        </Text>
-                                                    ))}
-                                                </View>
-
-                                                {/* Days grid */}
-                                                <View style={createEventStyles.daysGrid}>
-                                                    {createEventCalendarDays.map((day, index) => {
-                                                        if (!day) {
-                                                            return <View key={`empty-${index}`} style={createEventStyles.dayCell} />;
-                                                        }
-
-                                                        const dayOfWeek = day.getDay();
-                                                        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-                                                        const selected = isDateSelected(day, createEventEndDate);
-
-                                                        return (
-                                                            <TouchableOpacity
-                                                                key={day.toISOString()}
-                                                                style={createEventStyles.dayCell}
-                                                                onPress={() => handleCreateDateSelect(day, false)}
-                                                            >
-                                                                <View style={[
-                                                                    createEventStyles.dayNumber,
-                                                                    selected && createEventStyles.selectedDayNumber,
-                                                                    isTodayCheck(day) && !selected && createEventStyles.todayDayNumber,
-                                                                ]}>
-                                                                    <Text style={[
-                                                                        createEventStyles.dayText,
-                                                                        isWeekend && !selected && createEventStyles.weekendDayText,
-                                                                        selected && createEventStyles.selectedDayText,
-                                                                    ]}>
-                                                                        {day.getDate()}
-                                                                    </Text>
-                                                                </View>
-                                                            </TouchableOpacity>
-                                                        );
-                                                    })}
-                                                </View>
-                                            </View>
-                                        ) : (
-                                            // Time Picker
-                                            <View style={createEventStyles.timePickerContainer}>
-                                                <Picker
-                                                    selectedValue={createEventEndTime.split(':')[0]}
-                                                    onValueChange={(value) => {
-                                                        const mins = createEventEndTime.split(':')[1];
-                                                        setCreateEventEndTime(`${value}:${mins}`);
-                                                    }}
-                                                    itemStyle={createEventStyles.pickerItem}
-                                                    style={{ flex: 1, height: 200 }}
-                                                >
-                                                    {hours.map((hour) => (
-                                                        <Picker.Item key={hour} label={hour} value={hour} />
-                                                    ))}
-                                                </Picker>
-                                                <Text style={createEventStyles.timeSeparator}>:</Text>
-                                                <Picker
-                                                    selectedValue={createEventEndTime.split(':')[1]}
-                                                    onValueChange={(value) => {
-                                                        const hrs = createEventEndTime.split(':')[0];
-                                                        setCreateEventEndTime(`${hrs}:${value}`);
-                                                    }}
-                                                    itemStyle={createEventStyles.pickerItem}
-                                                    style={{ flex: 1, height: 200 }}
-                                                >
-                                                    {minutes.map((minute) => (
-                                                        <Picker.Item key={minute} label={minute} value={minute} />
-                                                    ))}
-                                                </Picker>
-                                            </View>
-                                        )}
-                                    </RNAnimated.View>
-                                )}
-
-                                <View style={createEventStyles.separator} />
-
-                                {/* Repeat Row */}
-                                <TouchableOpacity
-                                    style={[createEventStyles.dateTimeRow, { marginTop: 8 }]}
-                                    onPress={() => toggleDateTimePicker('repeat')}
-                                >
-                                    <Text style={createEventStyles.dateTimeLabel}>Repeat</Text>
-                                    <View style={createEventStyles.rowValueContainer}>
-                                        <Text style={[createEventStyles.rowValue, activePickerField === 'repeat' && createEventStyles.activeRowValue]}>
-                                            {REPEAT_OPTIONS.find(o => o.value === createEventRepeat)?.label || 'Never'}
-                                        </Text>
-                                        <Feather name="chevron-right" size={18} color="#8E8E93" />
-                                    </View>
-                                </TouchableOpacity>
-
-                                {/* Repeat Picker */}
-                                {activePickerField === 'repeat' && (
-                                    <RNAnimated.View style={[createEventStyles.inlinePicker, { height: dateTimePickerHeight }]}>
-                                        <Picker
-                                            selectedValue={createEventRepeat}
-                                            onValueChange={(value) => setCreateEventRepeat(value)}
-                                            itemStyle={createEventStyles.pickerItem}
-                                            style={{ height: 200 }}
-                                        >
-                                            {REPEAT_OPTIONS.map((option) => (
-                                                <Picker.Item key={option.value} label={option.label} value={option.value} />
-                                            ))}
-                                        </Picker>
-                                    </RNAnimated.View>
-                                )}
-                            </View>
-
-                            {/* Delete Button - only in edit mode */}
-                            {editingEventId && (
-                                <TouchableOpacity onPress={handleDeleteCreateEvent} style={createEventStyles.deleteButton} activeOpacity={0.9}>
-                                    <Feather name="trash-2" size={18} color="#FF3B30" />
-                                    <Text style={createEventStyles.deleteButtonText}>Delete Workout</Text>
-                                </TouchableOpacity>
-                            )}
-
-                            <View style={{ height: 120 }} />
-                        </ScrollView>
-
-                        {/* Add/Update Event Button */}
-                        <TouchableOpacity onPress={handleSaveEvent} style={createEventStyles.addEventButton} activeOpacity={0.9}>
-                            <Text style={createEventStyles.addEventButtonText}>{editingEventId ? 'Update Workout' : 'Add Workout'}</Text>
-                        </TouchableOpacity>
-                    </View>
-                </RNAnimated.View>
-            )}
         </>
     );
 }
@@ -4138,1431 +3139,3 @@ const MiniMonthGrid = ({
     );
 };
 
-const styles = StyleSheet.create({
-    card: {
-        backgroundColor: '#000000',
-    },
-    header: {
-        height: HEADER_HEIGHT,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 8,
-    },
-    backButton: {
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        paddingLeft: 4,
-        paddingRight: 20,
-        height: 48,
-        borderRadius: 24,
-        flexDirection: 'row',
-        alignItems: 'center',
-        borderWidth: 0.8,
-        borderColor: 'rgba(255,255,255,0.18)',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-    },
-    yearText: {
-        fontSize: 12,
-        color: '#ffffffff',
-        fontWeight: '600',
-        marginLeft: -4,
-    },
-    backButtonText: {
-        fontSize: 19,
-        fontWeight: '600',
-        marginLeft: 4,
-    },
-    headerRightPill: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        borderRadius: 25,
-        height: 50,
-        paddingHorizontal: 4,
-        borderWidth: 0.8,
-        borderColor: 'rgba(255, 255, 255, 0.18)',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-    },
-    headerRightIcon: {
-        width: 46,
-        height: 46,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    headerRightSeparator: {
-        width: 1,
-        height: 20,
-        backgroundColor: 'rgba(255,255,255,0.12)',
-    },
-    todayButton: {
-        height: 50,
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        borderRadius: 25,
-        paddingHorizontal: 8,
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 0.8,
-        borderColor: 'rgba(255, 255, 255, 0.18)',
-    },
-    todayButtonText: {
-        color: '#FFFFFF',
-        fontSize: 17,
-        fontWeight: '500',
-    },
-    navIconsPill: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        borderRadius: 25,
-        height: 50,
-        paddingHorizontal: 6,
-        borderWidth: 0.8,
-        borderColor: 'rgba(255,255,255,0.18)',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-    },
-    navIcon: {
-        width: 44,
-        height: 44,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-
-    monthTitleContainer: {
-        paddingHorizontal: 8,
-        paddingLeft: 18, // January'yi M ile hizala (~10px sağa)
-        paddingTop: 0, // Reset padding
-        paddingBottom: 8,
-        justifyContent: 'center',
-        overflow: 'hidden',
-    },
-    monthTitle: {
-        fontSize: 34,
-        fontWeight: '700',
-        color: '#FFFFFF',
-        letterSpacing: -0.5,
-        marginTop: -5, // Move 5px further up
-    },
-    dateTitleContainer: {
-        display: 'none', // Removed from old position
-    },
-    dayHeader: {
-        paddingHorizontal: 8,
-        paddingVertical: 12,
-        backgroundColor: '#000',
-        borderTopWidth: StyleSheet.hairlineWidth,
-        borderTopColor: '#2C2C2E',
-        borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: '#2C2C2E',
-        zIndex: 5,
-        alignItems: 'center',
-    },
-    dayHeaderText: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#FFFFFF',
-    },
-    weekdayRow: {
-        flexDirection: 'row',
-        paddingHorizontal: 0,
-        paddingTop: 0,
-        paddingBottom: 4,
-        borderBottomWidth: 0,
-        borderBottomColor: 'transparent',
-    },
-    weekday: {
-        flex: 1,
-        textAlign: 'center',
-        fontSize: 11,
-        color: '#FFFFFF',
-        fontWeight: '500',
-    },
-    weekendWeekday: {
-        color: '#FFFFFF',
-    },
-    calendarContent: {
-        flex: 1,
-        overflow: 'hidden',
-    },
-    gestureHeader: {
-        width: '100%',
-    },
-    weekPane: {
-        width: SCREEN_WIDTH,
-        flexDirection: 'row',
-        paddingHorizontal: 0,
-    },
-    monthPane: {
-        width: '100%',
-    },
-    weekContainer: {
-        paddingHorizontal: 0, // Parent padding removed (child WeekRow has 16px)
-        position: 'absolute',
-        width: '100%',
-        height: DAY_VIEW_HEIGHT,
-        top: 0, // ✅ 8'den 0'a
-
-        zIndex: 30,
-        overflow: 'visible', // Flying rows için gerekli
-    },
-    monthGrid: {
-        paddingHorizontal: 0,
-        paddingTop: 0,
-        flex: 1, // Allow it to expand
-        overflow: 'visible', // hidden yerine visible
-        zIndex: 20, // 10'dan 20'ye yükseltildi
-    },
-
-    weekRow: {
-        flexDirection: 'row',
-        height: WEEK_ROW_HEIGHT, // Force exact height for snapping stability
-        alignItems: 'center',
-    },
-    weekRowSeparator: {
-        borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: '#2C2C2E', // Slightly darker, cleaner separator
-    },
-    dayCell: {
-        flex: 1,
-        alignItems: 'center',
-        paddingTop: 9, // ✅ Fixed padding for both views
-        height: WEEK_ROW_HEIGHT, // Base height
-    },
-    dayCircle: {
-        width: 42,
-        height: 42,
-        borderRadius: 21,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'transparent',
-    },
-
-    todayCircle: {
-        backgroundColor: '#FF3B30',
-        width: 42,
-        height: 42,
-        borderRadius: 21,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    selectedCircle: {
-        backgroundColor: '#FFFFFF',
-        width: 42,
-        height: 42,
-        borderRadius: 21,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    dayNumber: {
-        fontSize: 19,
-        color: '#FFFFFF',
-        fontWeight: '600',
-    },
-    todayNumber: {
-        color: '#FFFFFF',
-        fontWeight: '700',
-    },
-    dayNumberSelected: {
-        color: '#000000',
-        fontWeight: '700',
-    },
-    weekendDayText: {
-        color: '#666666',
-    },
-    eventLabels: {
-        width: '100%',
-        alignItems: 'center',
-        marginTop: 7, // Reverted to 7 for better spacing
-        gap: 1, // Reverted to 1
-    },
-    eventPill: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 4,
-        paddingVertical: 4, // Increased to 4
-        borderRadius: 8,
-        width: '90%',
-        minHeight: 20, // Increased
-    },
-    eventDotMini: {
-        width: 4,
-        height: 4,
-        borderRadius: 2,
-        marginRight: 4,
-    },
-    eventText: {
-        fontSize: 12, // Increased to 12
-        color: '#FFFFFF',
-        fontWeight: '600',
-        textAlign: 'left',
-    },
-    moreEvents: {
-        fontSize: 9,
-        color: '#8E8E93',
-        fontWeight: '500',
-    },
-    timelineContainer: {
-        position: 'absolute',
-        top: 60, // DAY_VIEW_HEIGHT
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: '#000',
-        zIndex: 5, // 0'dan 5'e yükseltildi
-    },
-
-    timelinePane: {
-        width: SCREEN_WIDTH,
-        flex: 1,
-    },
-    daySeparator: {
-        height: 1,
-        backgroundColor: '#333',
-        width: '100%',
-    },
-    timeSlot: {
-        height: 50,
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: '#2C2C2E',
-    },
-    timeText: {
-        width: 50,
-        textAlign: 'center',
-        fontSize: 11,
-        color: '#8E8E93',
-        marginTop: -8,
-        fontWeight: '500',
-    },
-    timeLine: {
-        width: 0,
-        height: 0,
-    },
-    slotContent: {
-        flex: 1,
-        paddingHorizontal: 8,
-    },
-    timelineCard: {
-        borderRadius: 8,
-        padding: 8,
-        borderLeftWidth: 4,
-        marginBottom: 4,
-    },
-    timelineCardTitle: {
-        fontSize: 14,
-        fontWeight: '700',
-    },
-    timelineCardTime: {
-        fontSize: 11,
-        color: '#8E8E93',
-        marginTop: 2,
-    },
-    currentTimeContainer: {
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        height: 20,
-        flexDirection: 'row',
-        alignItems: 'center',
-        zIndex: 10,
-    },
-    currentTimeDot: {
-        width: 10,
-        height: 10,
-        borderRadius: 5,
-        backgroundColor: '#FF3B30',
-        marginLeft: 55,
-    },
-    currentTimeLine: {
-        flex: 1,
-        height: 2,
-        backgroundColor: '#FF3B30',
-    },
-    currentTimeLabel: {
-        position: 'absolute',
-        left: 2,
-        backgroundColor: '#FF3B30',
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        borderRadius: 10,
-    },
-    currentTimeText: {
-        color: '#FFF',
-        fontSize: 10,
-        fontWeight: 'bold',
-    },
-    // Multi Day and List Styles
-    multiDayHeaderRow: {
-        flexDirection: 'row',
-        paddingLeft: 50,
-        backgroundColor: '#000',
-        borderBottomWidth: 0.5,
-        borderBottomColor: '#2C2C2E',
-    },
-    multiDayHeaderColumn: {
-        flex: 1,
-        alignItems: 'center',
-        paddingVertical: 10,
-        borderLeftWidth: 0.5,
-        borderLeftColor: '#2C2C2E',
-    },
-    multiDayHeaderText: {
-        color: '#8E8E93',
-        fontSize: 14,
-        fontWeight: '600',
-    },
-    listItem: {
-        backgroundColor: '#1C1C1E',
-        borderRadius: 12,
-        padding: 16,
-        marginBottom: 12,
-        borderLeftWidth: 4,
-    },
-    listItemHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 8,
-    },
-    listItemTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#FFF',
-        flex: 1,
-    },
-    listItemTime: {
-        fontSize: 14,
-        color: '#8E8E93',
-    },
-    listItemTag: {
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 6,
-    },
-    listItemTagText: {
-        fontSize: 10,
-        fontWeight: 'bold',
-        color: '#FFF',
-    },
-    emptyListContainer: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginTop: 60,
-    },
-    emptyListText: {
-        color: '#8E8E93',
-        fontSize: 16,
-        marginTop: 16,
-        textAlign: 'center',
-    },
-    bottomNav: {
-        position: 'absolute',
-        bottom: 80,
-        left: 20,
-        right: 20,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        zIndex: 100,
-        borderRadius: 30,
-        padding: 4,
-    },
-    yearPickerContainer: {
-        flex: 1,
-        backgroundColor: '#000000',
-    },
-    yearHeader: {
-        paddingHorizontal: 8,
-        paddingTop: 60,
-        paddingBottom: 16,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    yearTitle: {
-        fontSize: 34,
-        fontWeight: '700',
-        color: '#FF3B30',
-    },
-    yearScroll: {
-        flex: 1,
-    },
-    yearGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        paddingHorizontal: 4,
-    },
-    miniMonth: {
-        width: '33.33%',
-        padding: 4,
-        marginBottom: 16,
-    },
-    miniMonthName: {
-        fontSize: 15,
-        fontWeight: '600',
-        color: '#FF3B30',
-        marginBottom: 4,
-    },
-    miniGrid: {
-        gap: 1,
-    },
-    miniWeek: {
-        flexDirection: 'row',
-        gap: 1,
-    },
-    miniDay: {
-        flex: 1,
-        aspectRatio: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    miniDayText: {
-        fontSize: 9,
-        color: '#FFFFFF',
-    },
-    miniDaySelected: {
-        color: '#FFFFFF',
-    },
-    miniTodayCircle: {
-        backgroundColor: '#FF3B30',
-        width: 14,
-        height: 14,
-        borderRadius: 7,
-        alignItems: 'center',
-        justifyContent: 'center'
-    },
-    miniSelectedCircle: {
-        backgroundColor: '#FFFFFF',
-        width: 14,
-        height: 14,
-        borderRadius: 7,
-        alignItems: 'center',
-        justifyContent: 'center'
-    },
-    miniDayTodayText: {
-        color: '#FFFFFF',
-        fontWeight: '700',
-        fontSize: 8
-    },
-    miniDaySelectedText: {
-        color: '#000000',
-        fontWeight: '700',
-        fontSize: 8
-    },
-    yearBottomNav: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 8,
-        paddingBottom: 32,
-        paddingTop: 12,
-        borderTopWidth: StyleSheet.hairlineWidth,
-        borderTopColor: '#2C2C2E',
-    },
-});
-
-// Event Detail Modal Styles
-const eventDetailStyles = StyleSheet.create({
-    fullScreenContainer: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 1000,
-    },
-    container: {
-        flex: 1,
-        backgroundColor: '#000',
-    },
-    swipeZone: {
-        position: 'absolute',
-        left: 0,
-        top: 0,
-        bottom: 0,
-        width: 50,
-        zIndex: 999,
-        backgroundColor: 'transparent',
-    },
-    dragArea: {
-        position: 'absolute',
-        left: 0,
-        top: 0,
-        bottom: 0,
-        width: 30,
-        zIndex: 100,
-    },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingTop: 60,
-        paddingBottom: 12,
-    },
-    circularIconButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        height: 44,
-        paddingHorizontal: 16,
-        borderRadius: 22,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        borderWidth: 0.8,
-        borderColor: 'rgba(255,255,255,0.18)',
-        gap: 4,
-    },
-    backButtonText: {
-        color: '#FFF',
-        fontSize: 17,
-        fontWeight: '500',
-    },
-    content: {
-        flex: 1,
-        paddingHorizontal: 16,
-    },
-    eventTitle: {
-        fontSize: 32,
-        fontWeight: '700',
-        color: '#FFF',
-        marginTop: 16,
-        marginBottom: 8,
-    },
-    dateText: {
-        fontSize: 16,
-        color: '#8E8E93',
-        marginBottom: 2,
-    },
-    timeText: {
-        fontSize: 16,
-        color: '#8E8E93',
-        marginBottom: 20,
-    },
-    timelineContainer: {
-        backgroundColor: '#1C1C1E',
-        borderRadius: 24,
-        paddingTop: 24,
-        paddingHorizontal: 16,
-        paddingBottom: 16,
-        marginBottom: 16,
-        position: 'relative',
-    },
-    hourRow: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-    },
-    hourLabel: {
-        width: 50,
-        fontSize: 12,
-        color: '#8E8E93',
-    },
-    hourSeparator: {
-        flex: 1,
-        height: StyleSheet.hairlineWidth,
-        backgroundColor: '#3A3A3C',
-        marginLeft: 10,
-        marginTop: 8,
-    },
-    eventBlock: {
-        borderRadius: 6,
-        padding: 10,
-        zIndex: 1,
-    },
-    eventBlockTitle: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#FFF',
-        marginBottom: 4,
-    },
-    eventBlockTimeRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    eventBlockTime: {
-        fontSize: 12,
-        color: 'rgba(255,255,255,0.7)',
-        marginLeft: 4,
-    },
-    // Updated Settings Styles
-    settingsButtonsContainer: {
-        backgroundColor: '#1C1C1E',
-        borderRadius: 24,
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        marginBottom: 16,
-    },
-    settingButtonRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: 12,
-    },
-    settingValueRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-    },
-    settingLabelContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    settingLabel: {
-        fontSize: 17,
-        color: '#FFF',
-    },
-    settingValue: {
-        fontSize: 17,
-        color: '#8E8E93',
-    },
-    settingSeparator: {
-        height: StyleSheet.hairlineWidth,
-        backgroundColor: '#3A3A3C',
-        marginLeft: 0,
-        width: '100%',
-    },
-    goalMenuOverlay: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 1,
-    },
-    goalMenuAnimatedWrapper: {
-        position: 'absolute',
-        zIndex: 100,
-    },
-    // New Workout Section Styles
-    workoutsSection: {
-        marginBottom: 16,
-    },
-    sectionHeaderRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 12,
-        paddingHorizontal: 4,
-    },
-    sectionTitle: {
-        color: '#FFF',
-        fontSize: 18,
-        fontWeight: '600',
-    },
-    seeAllText: {
-        color: '#8E8E93',
-        fontSize: 14,
-    },
-    workoutGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 12,
-    },
-    workoutCard: {
-        width: (SCREEN_WIDTH - 44) / 2,
-        backgroundColor: 'rgba(255,255,255,0.08)',
-        borderRadius: 24,
-        padding: 16,
-        alignItems: 'center',
-    },
-    cardIconContainer: {
-        width: 64,
-        height: 64,
-        borderRadius: 32,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 12,
-    },
-    cardTitle: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#FFF',
-        textAlign: 'center',
-    },
-    workoutSection: {
-        // Legacy style, kept just in case but replaced content above
-        backgroundColor: '#1C1C1E',
-        borderRadius: 16,
-        padding: 16,
-        marginBottom: 16,
-    },
-    workoutSectionTitle: {
-        fontSize: 20,
-        fontWeight: '600',
-        color: '#FFF',
-        marginBottom: 16,
-    },
-
-    deleteButtonContainer: {
-        marginTop: 50,
-        alignItems: 'center',
-    },
-    deleteButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingHorizontal: 24,
-        paddingVertical: 12,
-        borderRadius: 24,
-        overflow: 'hidden',
-        borderWidth: 0.8,
-        borderColor: 'rgba(255,255,255,0.18)',
-        backgroundColor: 'rgba(255,255,255,0.08)',
-        minHeight: 48,
-    },
-    deleteButtonText: {
-        color: '#FF3B30',
-        fontSize: 16,
-        fontWeight: '600',
-    },
-    modalOverlay: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.6)',
-        justifyContent: 'flex-end',
-    },
-    alertPickerContainer: {
-        backgroundColor: '#1C1C1E',
-        borderTopLeftRadius: 16,
-        borderTopRightRadius: 16,
-        maxHeight: 400,
-    },
-    alertPickerHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingVertical: 16,
-        borderBottomWidth: 0.5,
-        borderBottomColor: '#333',
-    },
-    alertPickerTitle: {
-        fontSize: 17,
-        fontWeight: '600',
-        color: '#FFF',
-    },
-    alertPickerDone: {
-        fontSize: 17,
-        color: '#007AFF',
-        fontWeight: '500',
-    },
-    alertPickerList: {
-        paddingBottom: 34,
-    },
-    alertOption: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingVertical: 14,
-        borderBottomWidth: 0.5,
-        borderBottomColor: '#333',
-    },
-    alertOptionSelected: {
-        backgroundColor: 'rgba(0,122,255,0.1)',
-    },
-    alertOptionText: {
-        fontSize: 16,
-        color: '#FFF',
-    },
-    alertOptionTextSelected: {
-        color: '#007AFF',
-    },
-    // Delete Modal Styles
-    deleteModalContent: {
-        backgroundColor: '#2C2C2E',
-        borderRadius: 20,
-        padding: 24,
-        marginHorizontal: 24,
-        marginBottom: 100,
-        borderWidth: 0.8,
-        borderColor: 'rgba(255,255,255,0.18)',
-    },
-    deleteModalTitle: {
-        color: '#FFF',
-        fontSize: 16,
-        fontWeight: '500',
-        textAlign: 'center',
-        marginBottom: 20,
-        lineHeight: 22,
-    },
-    deleteModalButton: {
-        backgroundColor: 'rgba(255, 59, 48, 0.1)',
-        borderRadius: 12,
-        paddingVertical: 14,
-        paddingHorizontal: 20,
-        marginTop: 10,
-        borderWidth: 1,
-        borderColor: 'rgba(255, 59, 48, 0.3)',
-    },
-    deleteModalButtonText: {
-        color: '#FF3B30',
-        fontSize: 16,
-        fontWeight: '600',
-        textAlign: 'center',
-    },
-    cancelModalButton: {
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        borderRadius: 12,
-        paddingVertical: 14,
-        paddingHorizontal: 20,
-        marginTop: 16,
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.2)',
-    },
-    cancelModalButtonText: {
-        color: '#FFF',
-        fontSize: 16,
-        fontWeight: '600',
-        textAlign: 'center',
-    },
-    // Edit Modal Styles
-    editModalContainer: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: '#000',
-        zIndex: 100,
-    },
-    editModalHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingTop: 60,
-        paddingBottom: 16,
-    },
-    editModalHeaderButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'rgba(255,255,255,0.12)',
-        borderWidth: 0.8,
-        borderColor: 'rgba(255,255,255,0.18)',
-    },
-    editModalTitle: {
-        color: '#FFF',
-        fontSize: 18,
-        fontWeight: '600',
-    },
-    editModalContent: {
-        flex: 1,
-        paddingHorizontal: 16,
-        paddingTop: 16,
-    },
-    editCard: {
-        backgroundColor: '#1C1C1E',
-        borderRadius: 16,
-        marginBottom: 16,
-        overflow: 'hidden',
-    },
-    editRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingVertical: 14,
-    },
-    editLabel: {
-        color: '#FFF',
-        fontSize: 16,
-    },
-    editValueContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    editValue: {
-        color: '#8E8E93',
-        fontSize: 16,
-        marginRight: 4,
-    },
-    editSeparator: {
-        height: StyleSheet.hairlineWidth,
-        backgroundColor: '#3A3A3C',
-        marginLeft: 16,
-    },
-    editPickerContainer: {
-        overflow: 'hidden',
-    },
-    editPicker: {
-        width: '100%',
-        height: 180,
-    },
-    editPickerItem: {
-        color: '#FFF',
-        fontSize: 18,
-    },
-    editTextInputRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 14,
-    },
-    editTextInputLabel: {
-        color: '#8E8E93',
-        fontSize: 16,
-        width: 60,
-    },
-    editTextInput: {
-        flex: 1,
-        color: '#FFF',
-        fontSize: 16,
-        paddingVertical: 0,
-    },
-    editNotesInput: {
-        minHeight: 60,
-        textAlignVertical: 'top',
-    },
-});
-
-// Workout Day Picker Modal Styles
-const workoutDayPickerStyles = StyleSheet.create({
-    fullScreenContainer: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 1002,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'flex-end',
-    },
-    modalContainer: {
-        backgroundColor: '#1C1C1E',
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        maxHeight: SCREEN_HEIGHT * 0.7,
-        paddingBottom: 40,
-    },
-    dragHandle: {
-        width: 40,
-        height: 4,
-        backgroundColor: '#666',
-        borderRadius: 2,
-        alignSelf: 'center',
-        marginTop: 10,
-        marginBottom: 10,
-    },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        borderBottomWidth: 0.5,
-        borderBottomColor: '#333',
-    },
-    closeButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    saveButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(157, 236, 44, 0.15)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    headerTitle: {
-        fontSize: 17,
-        fontWeight: '600',
-        color: '#FFF',
-    },
-    dateSection: {
-        alignItems: 'center',
-        paddingVertical: 20,
-        borderBottomWidth: 0.5,
-        borderBottomColor: '#333',
-    },
-    dateText: {
-        fontSize: 22,
-        fontWeight: '600',
-        color: '#FFF',
-    },
-    dateSubtext: {
-        fontSize: 15,
-        color: '#8E8E93',
-        marginTop: 4,
-    },
-    scrollView: {
-        maxHeight: SCREEN_HEIGHT * 0.45,
-    },
-    gridContainer: {
-        padding: 16,
-        gap: 12,
-    },
-    dayCard: {
-        backgroundColor: '#2C2C2E',
-        borderRadius: 12,
-        padding: 16,
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 8,
-    },
-    dayCardColor: {
-        width: 24,
-        height: 24,
-        borderRadius: 12,
-        marginRight: 14,
-    },
-    dayCardText: {
-        fontSize: 16,
-        fontWeight: '500',
-        color: '#FFF',
-        flex: 1,
-    },
-    checkmarkContainer: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-        backgroundColor: 'rgba(157, 236, 44, 0.15)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-});
-
-// Create Event Modal Styles
-const createEventStyles = StyleSheet.create({
-    fullScreenContainer: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 1001,
-        backgroundColor: '#000',
-    },
-    container: {
-        flex: 1,
-        backgroundColor: '#000',
-    },
-    modalContainer: {
-        flex: 1,
-        backgroundColor: '#1C1C1E',
-        marginHorizontal: 0,
-        marginTop: 60,
-        borderTopLeftRadius: 40,
-        borderTopRightRadius: 40,
-        overflow: 'hidden',
-    },
-    dragHandleArea: {
-        paddingTop: 12,
-        paddingBottom: 8,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    dragHandle: {
-        width: 36,
-        height: 5,
-        borderRadius: 2.5,
-        backgroundColor: 'rgba(255,255,255,0.3)',
-    },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingTop: 8,
-        paddingBottom: 12,
-    },
-    headerTitle: {
-        fontSize: 17,
-        fontWeight: '600',
-        color: '#FFF',
-    },
-    circularIconButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 0.8,
-        borderColor: 'rgba(255,255,255,0.18)',
-    },
-    circularAddButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 0.8,
-        borderColor: 'rgba(255,255,255,0.18)',
-    },
-    toggleContainer: {
-        flexDirection: 'row',
-        marginHorizontal: 16,
-        backgroundColor: '#3A3A3C',
-        borderRadius: 16,
-        padding: 3,
-        marginBottom: 16,
-    },
-    toggleButton: {
-        flex: 1,
-        paddingVertical: 8,
-        borderRadius: 8,
-        alignItems: 'center',
-    },
-    toggleButtonActive: {
-        backgroundColor: '#636366',
-    },
-    toggleText: {
-        fontSize: 15,
-        color: '#8E8E93',
-        fontWeight: '500',
-    },
-    toggleTextActive: {
-        color: '#FFF',
-    },
-    content: {
-        flex: 1,
-        paddingHorizontal: 16,
-    },
-    inputCard: {
-        backgroundColor: '#2C2C2E',
-        borderRadius: 24,
-        marginBottom: 12,
-        paddingHorizontal: 16,
-    },
-    cardExpanded: {
-        borderBottomLeftRadius: 0,
-        borderBottomRightRadius: 0,
-        marginBottom: 0,
-    },
-    titleInput: {
-        fontSize: 17,
-        color: '#FFF',
-        paddingVertical: 14,
-    },
-    rowContent: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: 14,
-    },
-    rowLabel: {
-        fontSize: 16,
-        color: '#FFF',
-    },
-    rowValueContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-    },
-    rowValue: {
-        fontSize: 16,
-        color: '#FFFFFF',
-    },
-    activeRowValue: {
-        color: '#FFFFFF',
-    },
-    pickerWrapper: {
-        backgroundColor: '#3A3A3C',
-        borderTopLeftRadius: 0,
-        borderTopRightRadius: 0,
-        borderBottomLeftRadius: 12,
-        borderBottomRightRadius: 12,
-        marginBottom: 12,
-        overflow: 'hidden',
-    },
-    pickerItem: {
-        color: '#FFF',
-        fontSize: 20,
-    },
-    dateTimeCard: {
-        backgroundColor: '#2C2C2E',
-        borderRadius: 24,
-        paddingHorizontal: 16,
-        paddingTop: 16,
-        paddingBottom: 24,
-        marginBottom: 12,
-    },
-    dateTimeRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: 8,
-    },
-    dateTimeLabel: {
-        fontSize: 16,
-        color: '#FFF',
-    },
-    dateTimeValues: {
-        flexDirection: 'row',
-        gap: 8,
-    },
-    datePill: {
-        backgroundColor: 'rgba(120,120,128,0.24)',
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        borderRadius: 16,
-    },
-    datePillText: {
-        fontSize: 17,
-        color: '#FFFFFF',
-        fontWeight: '500',
-    },
-    timePill: {
-        backgroundColor: 'rgba(120,120,128,0.24)',
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        borderRadius: 16,
-    },
-    timePillActive: {
-        backgroundColor: 'rgba(255,149,0,0.3)',
-    },
-    timePillText: {
-        fontSize: 17,
-        color: '#FFFFFF',
-        fontWeight: '500',
-    },
-    pillActive: {
-        backgroundColor: 'rgba(0,122,255,0.3)',
-    },
-    pillTextActive: {
-        fontWeight: '600',
-    },
-    separator: {
-        height: 1,
-        backgroundColor: '#48484A',
-        marginLeft: 0,
-    },
-    inlinePicker: {
-        overflow: 'hidden',
-    },
-    calendarContainer: {
-        paddingVertical: 8,
-        paddingHorizontal: 4,
-    },
-    monthNav: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 8,
-        paddingBottom: 12,
-    },
-    monthNavText: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#FFF',
-    },
-    weekdayHeader: {
-        flexDirection: 'row',
-        paddingBottom: 8,
-    },
-    weekdayText: {
-        width: CREATE_EVENT_DAY_WIDTH,
-        textAlign: 'center',
-        color: '#8E8E93',
-        fontSize: 12,
-        fontWeight: '500',
-    },
-    weekendHeaderText: {
-        color: '#666',
-    },
-    daysGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-    },
-    dayCell: {
-        width: CREATE_EVENT_DAY_WIDTH,
-        height: 36,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    dayNumber: {
-        width: 30,
-        height: 30,
-        borderRadius: 15,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    selectedDayNumber: {
-        backgroundColor: '#FF3B30',
-    },
-    todayDayNumber: {
-        backgroundColor: 'rgba(255,59,48,0.3)',
-    },
-    dayText: {
-        fontSize: 15,
-        color: '#FFF',
-    },
-    weekendDayText: {
-        color: '#666',
-    },
-    selectedDayText: {
-        color: '#FFF',
-        fontWeight: '600',
-    },
-    timePickerContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingHorizontal: 20,
-    },
-    timeSeparator: {
-        fontSize: 24,
-        fontWeight: '600',
-        color: '#FFF',
-        marginHorizontal: 4,
-    },
-    addEventButton: {
-        position: 'absolute',
-        bottom: 34,
-        left: 16,
-        right: 16,
-        height: 54,
-        borderRadius: 27,
-        backgroundColor: '#34C759',
-        alignItems: 'center',
-        justifyContent: 'center',
-        shadowColor: '#34C759',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 8,
-    },
-    addEventButtonText: {
-        color: '#000',
-        fontSize: 18,
-        fontWeight: '600',
-    },
-    deleteButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginHorizontal: 16,
-        marginTop: 24,
-        paddingVertical: 14,
-        borderRadius: 12,
-        backgroundColor: 'rgba(255, 59, 48, 0.1)',
-        borderWidth: 1,
-        borderColor: 'rgba(255, 59, 48, 0.3)',
-    },
-    deleteButtonText: {
-        color: '#FF3B30',
-        fontSize: 16,
-        fontWeight: '600',
-        marginLeft: 8,
-    },
-});

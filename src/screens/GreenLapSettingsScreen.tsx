@@ -51,13 +51,13 @@ export function GreenLapSettingsScreen({ route, navigation }: GreenLapSettingsSc
     const loadSettings = async () => {
       try {
         if (blockId && workoutId) {
-             const { loadWorkoutSettings } = await import('../utils/WorkoutSettingsManager');
-             const loadedSettings = await loadWorkoutSettings(workoutId);
-             const block = loadedSettings.customBlocks?.find((b: any) => b.id === blockId);
-             if (block && block.settings.greenReps) {
-                 setGreenLaps(String(block.settings.greenReps));
-             }
-             return;
+          const { loadWorkoutSettings } = await import('../utils/WorkoutSettingsManager');
+          const loadedSettings = await loadWorkoutSettings(workoutId);
+          const block = loadedSettings.customBlocks?.find((b: any) => b.id === blockId);
+          if (block && block.settings.greenReps) {
+            setGreenLaps(String(block.settings.greenReps));
+          }
+          return;
         }
         if (workoutId && workoutId !== 'default') {
           const { loadWorkoutSettings } = await import('../utils/WorkoutSettingsManager');
@@ -84,7 +84,8 @@ export function GreenLapSettingsScreen({ route, navigation }: GreenLapSettingsSc
           const currentSettings = await loadWorkoutSettings(workoutId);
           await saveWorkoutSettings({
             ...currentSettings,
-            greenReps: greenLaps
+            greenReps: greenLaps,
+            targetSets: greenLaps
           });
         } else {
           await AsyncStorage.setItem('greenLaps', greenLaps);
@@ -121,7 +122,8 @@ export function GreenLapSettingsScreen({ route, navigation }: GreenLapSettingsSc
         const currentSettings = await loadWorkoutSettings(workoutId);
         await saveWorkoutSettings({
           ...currentSettings,
-          greenReps: greenLaps
+          greenReps: greenLaps,
+          targetSets: greenLaps
         });
       } else {
         await AsyncStorage.setItem('greenLaps', greenLaps);
@@ -150,46 +152,49 @@ export function GreenLapSettingsScreen({ route, navigation }: GreenLapSettingsSc
         <View style={{ position: 'absolute', top: 50, right: 24, zIndex: 10 }}>
           <TouchableOpacity
             onPress={async () => {
-                if (workoutId) {
-                    const { loadWorkoutSettings, saveWorkoutSettings } = await import('../utils/WorkoutSettingsManager');
-                    const current = await loadWorkoutSettings(workoutId);
-                    
-                    if (blockId) {
-                        // Update existing block and move to top
-                        const otherBlocks = current.customBlocks?.filter((b: any) => b.id !== blockId) || [];
-                        const existingBlock = current.customBlocks?.find((b: any) => b.id === blockId);
-                        
-                        if (existingBlock) {
-                            const updatedBlock = {
-                                ...existingBlock,
-                                settings: {
-                                    ...existingBlock.settings,
-                                    greenReps: parseInt(greenLaps, 10)
-                                }
-                            };
-                            
-                            await saveWorkoutSettings({
-                                ...current,
-                                customBlocks: [updatedBlock, ...otherBlocks]
-                            });
-                        }
-                    } else {
-                        // Create new block
-                        const newBlock = {
-                            id: Date.now().toString() + Math.random().toString(),
-                            type: 'lap' as const,
-                            settings: {
-                                greenReps: parseInt(greenLaps, 10),
-                                redReps: 3
-                            }
-                        };
-                        await saveWorkoutSettings({
-                            ...current,
-                            customBlocks: [newBlock, ...(current.customBlocks || [])]
-                        });
+              if (workoutId) {
+                const { loadWorkoutSettings, saveWorkoutSettings } = await import('../utils/WorkoutSettingsManager');
+                const current = await loadWorkoutSettings(workoutId);
+
+                if (blockId) {
+                  // Update existing block and move to top
+                  const otherBlocks = current.customBlocks?.filter((b: any) => b.id !== blockId) || [];
+                  const existingBlock = current.customBlocks?.find((b: any) => b.id === blockId);
+
+                  if (existingBlock) {
+                    const updatedBlock = {
+                      ...existingBlock,
+                      settings: {
+                        ...existingBlock.settings,
+                        greenReps: parseInt(greenLaps, 10),
+                        targetSets: greenLaps
+                      }
+                    };
+
+                    await saveWorkoutSettings({
+                      ...current,
+                      customBlocks: [updatedBlock, ...otherBlocks]
+                    });
+                  }
+                } else {
+                  // Create new block
+                  const newBlock = {
+                    id: Date.now().toString() + Math.random().toString(),
+                    type: 'lap' as const,
+                    settings: {
+                      greenReps: parseInt(greenLaps, 10),
+                      redReps: 3,
+                      targetSets: greenLaps,
+                      targetReps: '3'
                     }
-                    navigation.pop(2);
+                  };
+                  await saveWorkoutSettings({
+                    ...current,
+                    customBlocks: [newBlock, ...(current.customBlocks || [])]
+                  });
                 }
+                navigation.pop(2);
+              }
             }}
             style={{
               width: 48,
@@ -208,7 +213,8 @@ export function GreenLapSettingsScreen({ route, navigation }: GreenLapSettingsSc
             <MaterialCommunityIcons name="check" size={32} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
-      )}
+      )
+      }
 
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Workout Laps</Text>
@@ -271,6 +277,6 @@ export function GreenLapSettingsScreen({ route, navigation }: GreenLapSettingsSc
         </TouchableOpacity>
       </ScrollView>
 
-    </View>
+    </View >
   );
 }

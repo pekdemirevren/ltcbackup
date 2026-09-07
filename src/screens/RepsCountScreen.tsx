@@ -278,6 +278,9 @@ export default function RepsCountScreen({ navigation }: RepsCountScreenProps) {
           <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
             <Text style={[styles.workoutValue, { color: '#A358DF' }]}>{weightVal}</Text>
             <Text style={[styles.workoutUnit, { color: '#A358DF' }]}>KG</Text>
+            <Text style={[styles.workoutUnit, { marginLeft: 4, marginRight: 4, color: '#A358DF' }]}>/</Text>
+            <Text style={[styles.workoutValue, { color: '#A358DF' }]}>{item.completedSets || 0}x{item.completedReps || 0}</Text>
+            <Text style={[styles.workoutUnit, { color: '#A358DF' }]}>REPS</Text>
           </View>
         </View>
         <Text style={styles.workoutDateLabel}>{dateLabel}</Text>

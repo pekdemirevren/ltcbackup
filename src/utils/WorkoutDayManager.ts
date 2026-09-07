@@ -1,20 +1,26 @@
 // Workout Day Manager - Manages which cards are in each workout day
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export type WorkoutDayType = 'LEG DAY' | 'CHEST DAY' | 'SHOULDER DAY' | 'BACK DAY' | 'ABS DAY' | 'BICEPS-TRICEPS DAY';
+export type WorkoutDayType = 'PUSH' | 'PULL' | 'LEGS' | 'REST' | 'LEG DAY' | 'PUSH DAY' | 'PULL DAY' | 'OFF DAY' | 'CHEST DAY' | 'SHOULDER DAY' | 'BACK DAY' | 'ABS DAY' | 'BICEPS-TRICEPS DAY';
 
 export const ALL_WORKOUT_DAYS: WorkoutDayType[] = [
   'LEG DAY',
-  'CHEST DAY', 
-  'SHOULDER DAY',
-  'BACK DAY',
-  'ABS DAY',
-  'BICEPS-TRICEPS DAY',
+  'PUSH DAY',
+  'PULL DAY',
+  'OFF DAY',
 ];
 
-// Workout Day'e göre default muscle group mapping
-export const WORKOUT_DAY_MUSCLE_GROUPS: Record<WorkoutDayType, string[]> = {
+// Workout Day default muscle group mapping
+export const WORKOUT_DAY_MUSCLE_GROUPS: Record<string, string[]> = {
+  'PUSH': ['Chest', 'Shoulders', 'Triceps'],
+  'PULL': ['Back', 'Traps', 'Biceps'],
+  'LEGS': ['Legs', 'Glutes', 'Abs'],
+  'REST': ['Rest'],
+  'PUSH DAY': ['Chest', 'Shoulders', 'Triceps'],
+  'PULL DAY': ['Back', 'Traps', 'Biceps'],
   'LEG DAY': ['Legs'],
+  'OFF DAY': ['Rest'],
+  // Legacy mappings for temporary compatibility
   'CHEST DAY': ['Chest'],
   'SHOULDER DAY': ['Shoulders'],
   'BACK DAY': ['Back'],
@@ -23,14 +29,41 @@ export const WORKOUT_DAY_MUSCLE_GROUPS: Record<WorkoutDayType, string[]> = {
 };
 
 // Workout day colors for calendar and UI
-export const WORKOUT_DAY_COLORS: Record<WorkoutDayType, string> = {
-  'LEG DAY': '#4A90D9',
+export const WORKOUT_DAY_COLORS: Record<string, string> = {
+  'PUSH': '#FF3B30',      // Red (Energetic)
+  'PULL': '#5856D6',      // Purple/Indigo (Cooler but strong)
+  'LEGS': '#FF9500',      // Orange (Warning/Hard)
+  'REST': '#8E8E93',      // Grey
+  'PUSH DAY': '#FF3B30',
+  'PULL DAY': '#5856D6',
+  'LEG DAY': '#FF9500',   // Match LEGS color
+  'OFF DAY': '#8E8E93',   // Match REST color
+  // Legacy
   'CHEST DAY': '#6B8E23',
   'SHOULDER DAY': '#9B59B6',
   'BACK DAY': '#E67E22',
   'ABS DAY': '#1ABC9C',
   'BICEPS-TRICEPS DAY': '#E74C3C',
 };
+
+/**
+ * Maps legacy workout types to new PPL types
+ */
+export function mapLegacyToPPL(type: WorkoutDayType): WorkoutDayType {
+  switch (type) {
+    case 'CHEST DAY':
+    case 'SHOULDER DAY':
+      return 'PUSH';
+    case 'BACK DAY':
+    case 'BICEPS-TRICEPS DAY':
+      return 'PULL';
+    case 'LEG DAY':
+    case 'ABS DAY':
+      return 'LEGS';
+    default:
+      return type;
+  }
+}
 
 // Storage keys
 const WORKOUT_DAY_CARDS_PREFIX = '@workout_day_cards_';
@@ -51,6 +84,10 @@ export interface DailySchedule {
  * Get storage key for a workout day's cards
  */
 function getWorkoutDayKey(workoutDay: WorkoutDayType): string {
+  if (!workoutDay || typeof workoutDay !== 'string') {
+    console.warn('⚠️ getWorkoutDayKey called with invalid workoutDay:', workoutDay);
+    return `${WORKOUT_DAY_CARDS_PREFIX}LEG_DAY`; // Fallback
+  }
   return `${WORKOUT_DAY_CARDS_PREFIX}${workoutDay.replace(/\s+/g, '_')}`;
 }
 
@@ -61,11 +98,11 @@ export async function loadWorkoutDayCards(workoutDay: WorkoutDayType): Promise<s
   try {
     const key = getWorkoutDayKey(workoutDay);
     const stored = await AsyncStorage.getItem(key);
-    
+
     if (stored) {
       return JSON.parse(stored);
     }
-    
+
     return []; // Return empty array if no cards saved
   } catch (error) {
     console.error('Error loading workout day cards:', error);
@@ -91,13 +128,13 @@ export async function saveWorkoutDayCards(workoutDay: WorkoutDayType, workoutIds
  */
 export async function addCardToWorkoutDay(workoutDay: WorkoutDayType, workoutId: string): Promise<string[]> {
   const currentCards = await loadWorkoutDayCards(workoutDay);
-  
+
   if (!currentCards.includes(workoutId)) {
     const newCards = [...currentCards, workoutId];
     await saveWorkoutDayCards(workoutDay, newCards);
     return newCards;
   }
-  
+
   return currentCards;
 }
 
@@ -147,37 +184,13 @@ export async function saveDailySchedule(schedule: DailySchedule): Promise<void> 
 }
 
 /**
- * Get or generate today's workout day
- * Uses random assignment if not already scheduled
+ * @deprecated Use calendar events instead. This function is kept for backward compatibility.
+ * Returns null if no workout is scheduled for today.
  */
-export async function getTodaysWorkoutDay(): Promise<WorkoutDayType> {
+export async function getTodaysWorkoutDay(): Promise<WorkoutDayType | null> {
   const today = getTodayDateString();
   const schedule = await loadDailySchedule();
-  
-  // If today is already scheduled, return it
-  if (schedule[today]) {
-    return schedule[today];
-  }
-  
-  // Otherwise, generate random workout day for today
-  // Get visible workout days (not hidden)
-  const hiddenDays = await loadHiddenWorkoutDays();
-  const visibleDays = ALL_WORKOUT_DAYS.filter(day => !hiddenDays.includes(day));
-  
-  if (visibleDays.length === 0) {
-    return 'LEG DAY'; // Default fallback
-  }
-  
-  // Random selection based on date seed for consistency
-  const dateNum = parseInt(today.replace(/-/g, ''));
-  const randomIndex = dateNum % visibleDays.length;
-  const selectedDay = visibleDays[randomIndex];
-  
-  // Save to schedule
-  schedule[today] = selectedDay;
-  await saveDailySchedule(schedule);
-  
-  return selectedDay;
+  return schedule[today] || null;
 }
 
 /**

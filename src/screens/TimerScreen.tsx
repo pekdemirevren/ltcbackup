@@ -85,7 +85,7 @@ const ProgressCircle: React.FC<ProgressCircleProps> = ({
 
 export function TimerScreen({ route, navigation }: TimerScreenNavigationProps) {
   // Route params
-  const { workoutId, workoutName } = route.params || {};
+  const { workoutId, workoutName, mainCardId, attemptId } = route.params || {};
   const {
     settings,
     modeType,
@@ -99,7 +99,10 @@ export function TimerScreen({ route, navigation }: TimerScreenNavigationProps) {
     initialInfiniteSpeed,
     initialCycleTrackingEnabled,
     initialLoopPhase,
+    collectibleCardId,
+    collectibleBaseLevel,
   } = route.params || {};
+
 
   // Contexts
   const themeContext = useContext(ThemeContext);
@@ -303,6 +306,8 @@ export function TimerScreen({ route, navigation }: TimerScreenNavigationProps) {
   // Save workout summary
   const saveWorkoutSummary = useCallback(
     async (finalSets: number, finalReps: number) => {
+      // 0. Import MainCardAttemptManager dynamically to avoid overhead
+      const { recordWorkoutInAttempt } = await import('../utils/MainCardAttemptManager');
       if (workoutFinishedRef.current && completedGreenRepsRef.current > finalSets) {
         return;
       }
@@ -364,12 +369,68 @@ export function TimerScreen({ route, navigation }: TimerScreenNavigationProps) {
 
         summaries.push(summary);
         await AsyncStorage.setItem('workoutSummaries', JSON.stringify(summaries));
+
+        // 4. Record in Main Card Attempt if applicable
+        if (mainCardId && workoutId) {
+          await recordWorkoutInAttempt(mainCardId, workoutId, {
+            weightKg: currentWeight,
+            completedSets: finalSets,
+            completedReps: finalReps,
+            elapsedSec: finalElapsedTime,
+            activeSec: (greenLoopTimesRef.current.reduce((a, b) => a + b, 0)),
+            restSec: (redLoopTimesRef.current.reduce((a, b) => a + b, 0)),
+          });
+        }
+
+        // 5. Award Collectible XP if applicable
+        if (collectibleCardId) {
+          const { addWorkoutXP } = await import('../utils/LevelSystem');
+          const { collectibleWorkouts } = await import('../constants/collectibleWorkouts');
+
+          const card = collectibleWorkouts.find(c => c.id === collectibleCardId);
+          let allExercisesDone = false;
+
+          if (card) {
+            // Check if all exercises are done (including this one)
+            // We look at summaries updated just now
+            const updatedSummariesStr = await AsyncStorage.getItem('workoutSummaries');
+            const updatedSummaries = updatedSummariesStr ? JSON.parse(updatedSummariesStr) : [];
+
+            // Map exercise IDs
+            const cardExerciseIds = card.exercises.map(e => e.id);
+
+            // Filter summaries for today
+            const today = new Date().toISOString().split('T')[0];
+            const todaySummaries = updatedSummaries.filter((s: any) => s.date.startsWith(today));
+            const completedTodayIds = new Set(todaySummaries.map((s: any) => s.workoutId));
+
+            // This workout is already in completedTodayIds because we just saved it
+            allExercisesDone = cardExerciseIds.every(id => completedTodayIds.has(id));
+
+            console.log(`[LevelSystem] Card ${collectibleCardId}: Exercises completed? ${allExercisesDone}`);
+          }
+
+          const result = await addWorkoutXP(
+            collectibleCardId,
+            collectibleBaseLevel || 0,
+            finalElapsedTime,
+            allExercisesDone
+          );
+
+          if (result.leveledUp) {
+            console.log(`[LevelSystem] LEVELED UP! Card: ${collectibleCardId}, New Level: ${result.newLevel}`);
+          } else if (result.levelUpGated) {
+            console.log(`[LevelSystem] Level Up GATED. Card: ${collectibleCardId}, Pending exercises.`);
+          }
+        }
+
         if (workoutId) {
           await AsyncStorage.setItem(LAST_ACTIVITY_WORKOUT_ID_KEY, workoutId);
         }
       } catch (e) {
         console.error('❌ Kayıt hatası:', e);
       }
+
     },
     [
       workoutId,
@@ -542,6 +603,8 @@ export function TimerScreen({ route, navigation }: TimerScreenNavigationProps) {
     infiniteLoopTime,
     setGlobalIsPaused,
     saveWorkoutSummary,
+    collectibleCardId,
+    collectibleBaseLevel,
   ]);
 
   // Display values

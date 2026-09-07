@@ -1,10 +1,11 @@
 // src/navigation/RootNavigator.tsx
 
 import React from 'react';
-import { createStackNavigator } from '@react-navigation/stack';
+import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
 import { createNativeBottomTabNavigator } from '@react-navigation/bottom-tabs/unstable';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { TimerContext } from '../contexts/TimerContext';
+import { TabBarProvider, useTabBar } from '../contexts/TabBarContext';
 import SummaryStack from './stacks/SummaryStack';
 import WorkoutStack from './stacks/WorkoutStack';
 import SharingStack from './stacks/SharingStack';
@@ -25,6 +26,9 @@ import BalanceTrendScreen from '../screens/BalanceTrendScreen';
 import CadenceTrendScreen from '../screens/CadenceTrendScreen';
 import DensityTrendScreen from '../screens/DensityTrendScreen';
 import IntensityTrendScreen from '../screens/IntensityTrendScreen';
+import OneRMTrendScreen from '../screens/OneRMTrendScreen';
+import ProgressionTrendScreen from '../screens/ProgressionTrendScreen';
+import RPETrendScreen from '../screens/RPETrendScreen';
 import { GenericWorkoutSettingsScreen } from '../screens/GenericWorkoutSettingsScreen';
 import { LoopSelectionScreen } from '../screens/LoopSelectionScreen';
 import { LoopTimeScreen } from '../screens/LoopTimeScreen';
@@ -42,11 +46,11 @@ import { RedLapSettingsScreen } from '../screens/RedLapSettingsScreen';
 import AllCategoriesScreen from '../screens/AllCategoriesScreen';
 import SessionsScreen from '../screens/SessionsScreen';
 import WorkoutCategoryDetailScreen from '../screens/WorkoutCategoryDetailScreen';
-import DailyWorkoutDetailScreen from '../screens/DailyWorkoutDetailScreen';
 import WorkoutEventDetailScreen from '../screens/WorkoutEventDetailScreen';
-import EventDetailScreen from '../screens/EventDetailScreen';
 import CreateWorkoutEventScreen from '../screens/CreateWorkoutEventScreen';
+
 import type { SharingWorkoutData } from '../types/sharing';
+import type { WorkoutDayType } from '../utils/WorkoutDayManager';
 
 // TypeScript Types
 export interface TimerScreenParams {
@@ -73,14 +77,19 @@ export interface TimerScreenParams {
   initialCycleTrackingEnabled?: boolean;
   initialIsPaused?: boolean;
   initialLoopPhase?: 'green' | 'red';
+  mainCardId?: string;
+  attemptId?: string;
+  collectibleCardId?: string;
+  collectibleBaseLevel?: number;
 }
 
+
 export type RootStackParamList = {
-  Main: undefined;
+  Main: { screen?: string; params?: any; } | undefined;
   Timer: TimerScreenParams;
   Summary: undefined;
-  SummaryOverview: { openCalendar?: boolean; selectedDate?: string } | undefined;
-  DailySummaryDetail: undefined;
+  SummaryOverview: { openCalendar?: boolean; selectedDate?: string; workoutDay?: string } | undefined;
+  DailySummaryDetail: { date?: string; workoutDay?: string } | undefined;
   Cadence: undefined;
   Intensity: undefined;
   Density: undefined;
@@ -96,6 +105,9 @@ export type RootStackParamList = {
   CadenceTrend: undefined;
   DensityTrend: undefined;
   IntensityTrend: undefined;
+  OneRMTrend: undefined;
+  ProgressionTrend: undefined;
+  RPETrend: undefined;
   MoveScreen: undefined;
   AdjustMoveGoal: undefined;
   MoveGoalSchedule: undefined;
@@ -114,7 +126,7 @@ export type RootStackParamList = {
   WorkoutSettings: { workoutId: string; workoutName: string };
   WorkoutMain: undefined;
   WorkoutSummaryScreen: { workoutId: string; workoutName: string };
-  GenericWorkoutSettingsScreen: { workoutId: string; workoutName: string };
+  MainCardDetail: { cardId: string };
   LoopSelection: { workoutId?: string; workoutName?: string; isAddMode?: boolean; blockId?: string };
   LoopScreen: { workoutId?: string; workoutName?: string };
   LoopTime: { workoutId?: string; workoutName?: string; isAddMode?: boolean; blockId?: string };
@@ -129,19 +141,29 @@ export type RootStackParamList = {
   GreenLapSettingsScreen: { settings?: any; workoutId?: string; isAddMode?: boolean; blockId?: string };
   RedLapSettingsScreen: { settings?: any; workoutId?: string; isAddMode?: boolean; blockId?: string };
   WeightSelectionScreen: { workoutId: string; settings?: any; isAddMode?: boolean; blockId?: string };
+  GenericWorkoutSettingsScreen: {
+    workoutId: string;
+    workoutName: string;
+    collectibleCardId?: string;
+    collectibleBaseLevel?: number;
+    initialSettings?: {
+      targetSets?: string;
+      targetReps?: string;
+      weight?: string;
+    };
+  };
   CreateWorkoutBlockScreen: { workoutId: string; type: 'loop' | 'time' | 'speed' | 'lap' | 'weight' };
   // New screens for Categories
   AllCategories: undefined;
   SessionsScreen: undefined;
   WorkoutCategoryDetail: { workoutId?: string; workoutName?: string; categoryId?: string; categoryTitle?: string; workoutIds?: string[]; focusMetric?: string };
-  DailyWorkoutDetail: { workoutDay?: string; currentDay?: number; totalDays?: number; moveCount?: number; workoutIds?: string[]; dailyCalorieGoal?: number; eventId?: string; date?: string };
-  // Calendar Screens
   WorkoutEventDetail: { eventId: string; date: string };
-  EventDetail: { eventId: string; date: string };
-  CreateWorkoutEvent: { date?: string; eventId?: string; editMode?: boolean; startTime?: string; endTime?: string; workoutDay?: string; title?: string };
+  CreateWorkoutEventScreen: { date?: string; eventId?: string; editMode?: boolean; startTime?: string; endTime?: string; workoutDay?: string; title?: string; editingEventId?: string; repeat?: string };
   WorkoutSelectionScreen: undefined;
   CreateWorkoutScreen: undefined;
   TimeSettingsScreen: { workoutId?: string; workoutName?: string; onSave?: (settings: any) => void; settings?: any };
+  CollectibleWorkoutDetail: { workoutId: string; workoutName: string };
+
 };
 
 const Tab = createNativeBottomTabNavigator<RootStackParamList>();
@@ -192,8 +214,26 @@ const sharingScreenOptions = {
 
 // ✅ TAB NAVIGATOR - TAM VERSİYON
 function TabNavigator() {
+  const { isTabBarVisible } = useTabBar();
+
+  // Native tab bar için height:0 kullanarak gizleme
+  const dynamicScreenOptions = {
+    ...tabScreenOptions,
+    tabBarStyle: isTabBarVisible
+      ? tabScreenOptions.tabBarStyle
+      : {
+        ...tabScreenOptions.tabBarStyle,
+        height: 0,
+        minHeight: 0,
+        maxHeight: 0,
+      },
+  };
+
   return (
-    <Tab.Navigator screenOptions={tabScreenOptions}>
+    <Tab.Navigator
+      screenOptions={dynamicScreenOptions as any}
+      initialRouteName="Summary"
+    >
       <Tab.Screen
         name="Summary"
         component={SummaryStack}
@@ -223,76 +263,104 @@ export default function RootNavigator() {
   }
 
   return (
-    <RootStack.Navigator
-      screenOptions={{
-        headerShown: false,
-        presentation: 'card',
-      }}
-    >
-      <RootStack.Screen name="Main" component={TabNavigator} />
-      <RootStack.Screen
-        name="Timer"
-        component={TimerScreen}
-        options={{
-          gestureEnabled: false, // Timer ekranında geri swipe kapalı
+    <TabBarProvider>
+      <RootStack.Navigator
+        screenOptions={{
+          headerShown: false,
+          presentation: 'card',
         }}
-      />
-      <RootStack.Screen name="WorkoutSummaryScreen" component={WorkoutSummaryScreen} />
-      <RootStack.Screen
-        name="AdjustMoveGoal"
-        component={AdjustMoveGoalScreen}
-        options={{ presentation: 'modal' }}
-      />
-      <RootStack.Screen
-        name="MoveGoalSchedule"
-        component={MoveGoalScheduleScreen}
-        options={{ presentation: 'modal' }}
-      />
-      <RootStack.Screen
-        name="DailyMoveGoal"
-        component={DailyMoveGoalScreen}
-        options={{ presentation: 'modal' }}
-      />
-      <RootStack.Screen name="Trends" component={TrendsScreen} />
-      <RootStack.Screen name="GenericWorkoutSettingsScreen" component={GenericWorkoutSettingsScreen} />
-      <RootStack.Screen name="EnergyTrend" component={EnergyTrendScreen} />
-      <RootStack.Screen name="StrengthTrend" component={StrengthTrendScreen} />
-      <RootStack.Screen name="SetsTrend" component={SetsTrendScreen} />
-      <RootStack.Screen name="EnduranceTrend" component={EnduranceTrendScreen} />
-      <RootStack.Screen name="ConsistencyTrend" component={ConsistencyTrendScreen} />
-      <RootStack.Screen name="BalanceTrend" component={BalanceTrendScreen} />
-      <RootStack.Screen name="CadenceTrend" component={CadenceTrendScreen} />
-      <RootStack.Screen name="DensityTrend" component={DensityTrendScreen} />
-      <RootStack.Screen name="IntensityTrend" component={IntensityTrendScreen} />
-      <RootStack.Screen name="MoveScreen" component={MoveScreen} />
-      <RootStack.Screen name="LoopSelection" component={LoopSelectionScreen} />
-      <RootStack.Screen name="LoopTime" component={LoopTimeScreen} />
-      <RootStack.Screen name="LoopSpeed" component={LoopSpeedScreen} />
-      <RootStack.Screen name="TimeSelectionScreen" component={TimeSelectionScreen} />
-      <RootStack.Screen name="SpeedSelectionScreen" component={SpeedSelectionScreen} />
-      <RootStack.Screen name="LapSelectionScreen" component={LapSelectionScreen} />
-      <RootStack.Screen name="WeightSelectionScreen" component={WeightSelectionScreen} />
-      <RootStack.Screen name="GreenTimeSettingsScreen" component={GreenTimeSettingsScreen} />
-      <RootStack.Screen name="RedTimeSettingsScreen" component={RedTimeSettingsScreen} />
-      <RootStack.Screen name="GreenSpeedSettingsScreen" component={GreenSpeedSettingsScreen} />
-      <RootStack.Screen name="RedSpeedSettingsScreen" component={RedSpeedSettingsScreen} />
-      <RootStack.Screen name="GreenLapSettingsScreen" component={GreenLapSettingsScreen} />
-      <RootStack.Screen name="RedLapSettingsScreen" component={RedLapSettingsScreen} />
+      >
+        <RootStack.Screen name="Main" component={TabNavigator} />
+        <RootStack.Screen
+          name="Timer"
+          component={TimerScreen}
+          options={{
+            gestureEnabled: false, // Timer ekranında geri swipe kapalı
+          }}
+        />
+        <RootStack.Screen name="WorkoutSummaryScreen" component={WorkoutSummaryScreen} />
+        <RootStack.Screen
+          name="AdjustMoveGoal"
+          component={AdjustMoveGoalScreen}
+          options={{
+            presentation: 'modal',
+            gestureEnabled: true,
+            gestureDirection: 'vertical',
+            cardStyleInterpolator: CardStyleInterpolators.forModalPresentationIOS,
+            cardStyle: { backgroundColor: 'transparent' }
+          }}
+        />
+        <RootStack.Screen
+          name="MoveGoalSchedule"
+          component={MoveGoalScheduleScreen}
+          options={{
+            presentation: 'modal',
+            gestureEnabled: true,
+            gestureDirection: 'vertical',
+            cardStyleInterpolator: CardStyleInterpolators.forModalPresentationIOS,
+            cardStyle: { backgroundColor: 'transparent' }
+          }}
+        />
+        <RootStack.Screen
+          name="DailyMoveGoal"
+          component={DailyMoveGoalScreen}
+          options={{ presentation: 'modal' }}
+        />
+        <RootStack.Screen name="Trends" component={TrendsScreen} />
+        <RootStack.Screen name="GenericWorkoutSettingsScreen" component={GenericWorkoutSettingsScreen} />
+        <RootStack.Screen name="EnergyTrend" component={EnergyTrendScreen} />
+        <RootStack.Screen name="StrengthTrend" component={StrengthTrendScreen} />
+        <RootStack.Screen name="SetsTrend" component={SetsTrendScreen} />
+        <RootStack.Screen name="EnduranceTrend" component={EnduranceTrendScreen} />
+        <RootStack.Screen name="ConsistencyTrend" component={ConsistencyTrendScreen} />
+        <RootStack.Screen name="BalanceTrend" component={BalanceTrendScreen} />
+        <RootStack.Screen name="CadenceTrend" component={CadenceTrendScreen} />
+        <RootStack.Screen name="DensityTrend" component={DensityTrendScreen} />
+        <RootStack.Screen name="IntensityTrend" component={IntensityTrendScreen} />
+        <RootStack.Screen name="OneRMTrend" component={OneRMTrendScreen} />
+        <RootStack.Screen name="ProgressionTrend" component={ProgressionTrendScreen} />
+        <RootStack.Screen name="RPETrend" component={RPETrendScreen} />
+        <RootStack.Screen name="MoveScreen" component={MoveScreen} />
+        <RootStack.Screen name="LoopSelection" component={LoopSelectionScreen} />
+        <RootStack.Screen name="LoopTime" component={LoopTimeScreen} />
+        <RootStack.Screen name="LoopSpeed" component={LoopSpeedScreen} />
+        <RootStack.Screen name="TimeSelectionScreen" component={TimeSelectionScreen} />
+        <RootStack.Screen name="SpeedSelectionScreen" component={SpeedSelectionScreen} />
+        <RootStack.Screen name="LapSelectionScreen" component={LapSelectionScreen} />
+        <RootStack.Screen name="WeightSelectionScreen" component={WeightSelectionScreen} />
+        <RootStack.Screen name="GreenTimeSettingsScreen" component={GreenTimeSettingsScreen} />
+        <RootStack.Screen name="RedTimeSettingsScreen" component={RedTimeSettingsScreen} />
+        <RootStack.Screen name="GreenSpeedSettingsScreen" component={GreenSpeedSettingsScreen} />
+        <RootStack.Screen name="RedSpeedSettingsScreen" component={RedSpeedSettingsScreen} />
+        <RootStack.Screen name="GreenLapSettingsScreen" component={GreenLapSettingsScreen} />
+        <RootStack.Screen name="RedLapSettingsScreen" component={RedLapSettingsScreen} />
 
-      {/* Categories Screens */}
-      <RootStack.Screen name="AllCategories" component={AllCategoriesScreen} />
-      <RootStack.Screen name="SessionsScreen" component={SessionsScreen} />
-      <RootStack.Screen name="WorkoutCategoryDetail" component={WorkoutCategoryDetailScreen} />
-      <RootStack.Screen name="DailyWorkoutDetail" component={DailyWorkoutDetailScreen} />
+        {/* Categories Screens */}
+        <RootStack.Screen name="AllCategories" component={AllCategoriesScreen} />
+        <RootStack.Screen name="SessionsScreen" component={SessionsScreen} />
+        <RootStack.Screen name="WorkoutCategoryDetail" component={WorkoutCategoryDetailScreen} />
+        <RootStack.Screen name="MainCardDetail" component={require('../screens/MainCardDetailScreen').default} />
 
-      {/* Calendar Screens */}
-      <RootStack.Screen name="WorkoutEventDetail" component={WorkoutEventDetailScreen} />
-      <RootStack.Screen name="EventDetail" component={EventDetailScreen} />
-      <RootStack.Screen
-        name="CreateWorkoutEvent"
-        component={CreateWorkoutEventScreen}
-        options={{ presentation: 'modal' }}
-      />
-    </RootStack.Navigator>
+        {/* Calendar Screens */}
+        <RootStack.Screen
+          name="WorkoutEventDetail"
+          component={WorkoutEventDetailScreen}
+          options={{ gestureEnabled: true }}
+        />
+        <RootStack.Screen
+          name="CreateWorkoutEventScreen"
+          component={CreateWorkoutEventScreen}
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+            gestureEnabled: true,
+            gestureDirection: 'vertical',
+            cardStyleInterpolator: CardStyleInterpolators.forVerticalIOS,
+          }}
+        />
+
+
+      </RootStack.Navigator>
+    </TabBarProvider>
   );
 }

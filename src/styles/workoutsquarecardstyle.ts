@@ -23,7 +23,7 @@ export const WorkoutSquareCardStyle = StyleSheet.create({
         padding: SquareCardMeasurements.padding,
         justifyContent: 'flex-start',
     },
-    
+
     // Başlık (Workout) - fontsize 17 diğer kartlarla eşit
     workoutSquareHeader: {
         fontSize: 17,
@@ -33,7 +33,7 @@ export const WorkoutSquareCardStyle = StyleSheet.create({
         marginLeft: SquareCardMeasurements.workout.headerMarginLeft,
         transform: [{ translateY: 5 }], // Orijinal
     },
-    
+
     // İçerik container - Orijinal ölçüler
     workoutSquareIconContainer: {
         width: '110%', // Orijinal
@@ -50,7 +50,7 @@ export const WorkoutSquareCardStyle = StyleSheet.create({
         alignSelf: 'center',
         transform: [{ translateY: -3 }], // Orijinal
     },
-    
+
     // İkon wrapper
     workoutSquareIconWrapper: {
         width: 63,
@@ -61,7 +61,7 @@ export const WorkoutSquareCardStyle = StyleSheet.create({
         marginLeft: 0,
         marginBottom: 6,
     },
-    
+
     // Workout adı
     workoutSquareName: {
         fontSize: SquareCardMeasurements.workout.nameFontSize,
@@ -69,18 +69,18 @@ export const WorkoutSquareCardStyle = StyleSheet.create({
         color: '#FFF',
         marginTop: 0,
     },
-    
+
     // Action row (play icon + text)
     workoutSquareActionRow: {
         flexDirection: 'row',
         alignItems: 'center',
         marginTop: 4,
     },
-    
+
     // Action text
     workoutSquareActionText: {
         fontSize: SquareCardMeasurements.workout.actionFontSize,
-        color: '#9DEC2C',
+        color: '#FFFFFF',
         marginLeft: 4,
         fontWeight: '500',
     },

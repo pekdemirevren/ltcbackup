@@ -43,8 +43,8 @@ export const TrendsCard: React.FC<TrendsCardProps> = ({
     const trends = [
         { label: 'Energy', val: trendStats.energy, unit: 'KCAL/DAY', color: MetricColors.energy, action: () => onPress({ modal: 'energy' }) },
         { label: 'Strength', val: trendStats.strength, unit: 'KG/DAY', color: MetricColors.weight, action: () => onPress({ modal: 'strength' }) },
+        { label: '1RM', val: trendStats.oneRM || 0, unit: 'KG', color: '#F9104E', action: () => onPress({ screen: 'OneRMTrend' }) },
         { label: 'Sets', val: trendStats.sets, unit: 'SETS/DAY', color: MetricColors.sets, action: () => onPress({ modal: 'sets' }) },
-        { label: 'Consistency', val: trendStats.consistency, unit: '%', color: '#00C7BE', action: () => onPress({ modal: 'consistency' }) }
     ];
 
     return (

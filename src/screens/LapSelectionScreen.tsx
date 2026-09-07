@@ -48,26 +48,26 @@ export function LapSelectionScreen({ route, navigation }: LapSelectionScreenProp
       const loadSettings = async () => {
         try {
           if (blockId && workoutId) {
-             const settings = await loadWorkoutSettings(workoutId);
-             const block = settings.customBlocks?.find((b: any) => b.id === blockId);
-             if (block) {
-                 if (block.settings.greenReps) setLocalGreenReps(String(block.settings.greenReps));
-                 if (block.settings.redReps) setLocalRedReps(String(block.settings.redReps));
-             }
-             return;
+            const settings = await loadWorkoutSettings(workoutId);
+            const block = settings.customBlocks?.find((b: any) => b.id === blockId);
+            if (block) {
+              if (block.settings.greenReps) setLocalGreenReps(String(block.settings.greenReps));
+              if (block.settings.redReps) setLocalRedReps(String(block.settings.redReps));
+            }
+            return;
           }
           if (workoutId && workoutId !== 'default') {
-             const settings = await loadWorkoutSettings(workoutId);
-             if (settings) {
-                setCurrentSettings(settings);
-                setLocalGreenReps(String(settings.greenReps || '3'));
-                setLocalRedReps(String(settings.redReps || '3'));
-             }
+            const settings = await loadWorkoutSettings(workoutId);
+            if (settings) {
+              setCurrentSettings(settings);
+              setLocalGreenReps(String(settings.greenReps || '3'));
+              setLocalRedReps(String(settings.redReps || '3'));
+            }
           } else {
-             const storedGreen = await AsyncStorage.getItem('greenLaps');
-             const storedRed = await AsyncStorage.getItem('redLaps');
-             setLocalGreenReps(storedGreen || '3');
-             setLocalRedReps(storedRed || '3');
+            const storedGreen = await AsyncStorage.getItem('greenLaps');
+            const storedRed = await AsyncStorage.getItem('redLaps');
+            setLocalGreenReps(storedGreen || '3');
+            setLocalRedReps(storedRed || '3');
           }
         } catch (e) {
           console.error("Failed to load lap settings", e);
@@ -82,6 +82,8 @@ export function LapSelectionScreen({ route, navigation }: LapSelectionScreenProp
       ...(currentSettings || {}),
       greenReps: parseInt(localGreenReps, 10),
       redReps: parseInt(localRedReps, 10),
+      targetSets: localGreenReps,
+      targetReps: localRedReps,
     };
 
     // Update Context
@@ -100,49 +102,53 @@ export function LapSelectionScreen({ route, navigation }: LapSelectionScreenProp
 
   const handleCheckPress = async () => {
     if (workoutId) {
-        const { loadWorkoutSettings, saveWorkoutSettings } = await import('../utils/WorkoutSettingsManager');
-        const current = await loadWorkoutSettings(workoutId);
+      const { loadWorkoutSettings, saveWorkoutSettings } = await import('../utils/WorkoutSettingsManager');
+      const current = await loadWorkoutSettings(workoutId);
 
-        if (blockId) {
-             // Update existing block and move to top
-            const otherBlocks = current.customBlocks?.filter((b: any) => b.id !== blockId) || [];
-            const existingBlock = current.customBlocks?.find((b: any) => b.id === blockId);
-            
-            if (existingBlock) {
-                const updatedBlock = {
-                    ...existingBlock,
-                    settings: {
-                        ...existingBlock.settings,
-                        greenReps: parseInt(localGreenReps, 10),
-                        redReps: parseInt(localRedReps, 10)
-                    }
-                };
-                
-                await saveWorkoutSettings({
-                    ...current,
-                    customBlocks: [updatedBlock, ...otherBlocks]
-                });
+      if (blockId) {
+        // Update existing block and move to top
+        const otherBlocks = current.customBlocks?.filter((b: any) => b.id !== blockId) || [];
+        const existingBlock = current.customBlocks?.find((b: any) => b.id === blockId);
+
+        if (existingBlock) {
+          const updatedBlock = {
+            ...existingBlock,
+            settings: {
+              ...existingBlock.settings,
+              greenReps: parseInt(localGreenReps, 10),
+              redReps: parseInt(localRedReps, 10),
+              targetSets: localGreenReps,
+              targetReps: localRedReps,
             }
-        } else if (isAddMode) {
-            // Create new block
-            const newBlock: any = {
-                id: Date.now().toString() + Math.random().toString(),
-                type: 'lap',
-                settings: {
-                    greenReps: parseInt(localGreenReps, 10),
-                    redReps: parseInt(localRedReps, 10)
-                }
-            };
-            
-            const updatedBlocks = [newBlock, ...(current.customBlocks || [])];
-            
-            await saveWorkoutSettings({
-                ...current,
-                customBlocks: updatedBlocks
-            });
-        } else {
-            await saveSettings();
+          };
+
+          await saveWorkoutSettings({
+            ...current,
+            customBlocks: [updatedBlock, ...otherBlocks]
+          });
         }
+      } else if (isAddMode) {
+        // Create new block
+        const newBlock: any = {
+          id: Date.now().toString() + Math.random().toString(),
+          type: 'lap',
+          settings: {
+            greenReps: parseInt(localGreenReps, 10),
+            redReps: parseInt(localRedReps, 10),
+            targetSets: localGreenReps,
+            targetReps: localRedReps,
+          }
+        };
+
+        const updatedBlocks = [newBlock, ...(current.customBlocks || [])];
+
+        await saveWorkoutSettings({
+          ...current,
+          customBlocks: updatedBlocks
+        });
+      } else {
+        await saveSettings();
+      }
     }
     navigation.goBack();
   };

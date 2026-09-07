@@ -34,27 +34,12 @@ export const FabMenuStyles = StyleSheet.create({
     borderWidth: 0.8,
     borderColor: 'rgba(255,255,255,0.18)',
     backgroundColor: 'transparent',
-    paddingVertical: 8,
-    ...Platform.select({
-      ios: {
-        shadowColor: 'transparent',
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0,
-        shadowRadius: 0,
-      },
-      android: {
-        elevation: 0,
-      },
-    }),
+    paddingVertical: 12,
   },
 
   // Menu Content - BlurView içindeki semi-transparent overlay (bottomLargeButton ile eşitlenmiş)
   fabMenuContent: {
     backgroundColor: 'transparent',
-    borderRadius: 24,
-    borderWidth: 0,
-    borderColor: 'transparent',
-    paddingVertical: 8,
   },
 
   // Menu Item (DailySummaryDetailScreen goal menu ile eşitlenmiş)
@@ -91,19 +76,19 @@ export const FabMenuStyles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#2C2C2E',
+    backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 6,
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
-        shadowOpacity: 0.35,
-        shadowRadius: 10,
-        shadowOffset: { width: 0, height: 6 },
+        shadowColor: 'transparent',
+        shadowOpacity: 0,
+        shadowRadius: 0,
+        shadowOffset: { width: 0, height: 0 },
       },
       android: {
-        elevation: 8,
+        elevation: 0,
       },
     }),
   },
@@ -117,7 +102,7 @@ export const FabMenuStyles = StyleSheet.create({
     borderColor: '#9DEC2C',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#2C2C2E',
+    backgroundColor: 'transparent',
   },
 
   // FAB Icon Text
@@ -132,19 +117,19 @@ export const FabMenuStyles = StyleSheet.create({
 export const getBlurSettings = () => {
   return Platform.select({
     ios: {
-      blurType: 'light' as const,
-      blurAmount: 0,
+      blurType: 'dark' as const,
+      blurAmount: 20,
       reducedTransparencyFallbackColor: 'transparent',
     },
     android: {
-      blurType: 'light' as const,
-      blurAmount: 0,
+      blurType: 'dark' as const,
+      blurAmount: 20,
       reducedTransparencyFallbackColor: 'transparent',
       overlayColor: 'transparent',
     },
   }) || {
-    blurType: 'light' as const,
-    blurAmount: 0,
+    blurType: 'dark' as const,
+    blurAmount: 20,
     reducedTransparencyFallbackColor: 'transparent',
   };
 };

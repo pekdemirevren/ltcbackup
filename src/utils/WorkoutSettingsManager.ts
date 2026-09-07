@@ -69,23 +69,14 @@ export async function loadWorkoutSettings(workoutId: string): Promise<WorkoutSet
             return { ...DEFAULT_WORKOUT_SETTINGS, ...parsed, workoutId };
         }
 
-        // If no specific settings, try last saved
-        const lastStored = await AsyncStorage.getItem(LAST_SETTINGS_KEY);
-        if (lastStored) {
-            const parsed = JSON.parse(lastStored);
-            // important: update workoutId to the current one
-            const settingsForCurrentWorkout: WorkoutSettings = { ...parsed, workoutId };
-            console.log('↪️ Using last saved settings for', workoutId, ':', settingsForCurrentWorkout);
-            return settingsForCurrentWorkout;
-        }
-
         // Return default settings
         const defaultSettings: WorkoutSettings = {
             workoutId,
             ...DEFAULT_WORKOUT_SETTINGS,
         };
-        console.log('📋 Using default settings for', workoutId);
+        console.log('📄 No settings found, using defaults for', workoutId, ':', defaultSettings);
         return defaultSettings;
+
     } catch (error) {
         console.error('❌ Error loading settings for', workoutId, ':', error);
         return {

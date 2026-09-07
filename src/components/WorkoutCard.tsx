@@ -8,7 +8,10 @@ import { Swipeable } from 'react-native-gesture-handler';
 import Theme from '../constants/theme';
 import { ThemeContext, ThemeContextType } from '../contexts/ThemeContext';
 import { Workout } from '../constants/workoutData';
+import { collectibleWorkouts } from '../constants/collectibleWorkouts';
+import { getStatsWithBoostV2 } from '../utils/collectibleStatEngine';
 import SummaryIcon from '../assets/icons/SummaryIcon';
+import { FUTShield } from './FUTShield';
 
 interface WorkoutCardProps {
   workout: Workout;
@@ -171,6 +174,10 @@ export const WorkoutCard: React.FC<WorkoutCardProps> = React.memo(({ workout, st
   const deepSwipeTriggered = useRef(false);
   const swipeableRef = useRef<Swipeable>(null);
 
+  // Fetch collectible data for stats
+  const collectible = collectibleWorkouts.find(cw => cw.id === workout.workoutId);
+  const stats = collectible ? getStatsWithBoostV2(collectible.baseStats, collectible.baseLevel, collectible.position) : null;
+
   return (
     <View style={{ marginBottom: 10 }}>
       <Swipeable
@@ -197,61 +204,133 @@ export const WorkoutCard: React.FC<WorkoutCardProps> = React.memo(({ workout, st
           }
         }}
       >
-        <View
-          style={[
-            styles.card,
-            {
-              backgroundColor: 'transparent',
-              overflow: 'hidden',
-            }
-          ]}
+        <FUTShield
+          width={styles.card.width || 360}
+          height={styles.card.height || 260}
+          fill="#1C1C1E"
+          stroke="transparent"
+          strokeWidth={0}
         >
-          <BlurView
-            style={StyleSheet.absoluteFill}
-            blurType="dark"
-            blurAmount={20}
-            reducedTransparencyFallbackColor={colors.cardBackground}
-          />
-          <View style={styles.topRow}>
-            <View style={{ width: 55, height: 55, borderRadius: 8, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
-              <workout.SvgIcon width={55} height={55} fill="#9DEC2C" />
-            </View>
-            <TouchableOpacity
-              style={[styles.playIconContainer, { backgroundColor: colors.quickStart.primary }]}
-              onPress={onPlayPress}
-            >
-              <Theme.Icons.play.lib width={34} height={34} color={colors.playIconText} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.bottomSection}>
-            <Text style={styles.cardTitle}>{workout.name}</Text>
-            <View style={styles.bottomButtonsWrapper}>
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: 'transparent',
+                overflow: 'hidden',
+                borderWidth: 0,
+              }
+            ]}
+          >
+            <View style={styles.topRow}>
+              <View style={{ width: 55, height: 55, borderRadius: 8, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+                <workout.SvgIcon width={55} height={55} fill="#FFFFFF" />
+              </View>
               <TouchableOpacity
-                style={styles.bottomButton}
-                onPress={() => navigation.navigate('WorkoutSummaryScreen', {
-                  workoutId: workout.workoutId,
-                  workoutName: workout.name
-                })}
+                style={[styles.playIconContainer, { backgroundColor: colors.quickStart.primary }]}
+                onPress={onPlayPress}
               >
-                <SummaryIcon size={22} color={colors.text} />
+                <Theme.Icons.play.lib width={34} height={34} color={colors.playIconText} />
               </TouchableOpacity>
+            </View>
 
-              <TouchableOpacity
-                style={styles.bottomButton}
-                onPress={() => {
-                  navigation.navigate('GenericWorkoutSettingsScreen', {
+            <View style={styles.bottomSection}>
+              <Text style={styles.cardTitle}>{workout.name.toUpperCase()}</Text>
+
+              {stats && (
+                <View style={cardStyles.statsRow}>
+                  <View style={cardStyles.inlineStatItem}>
+                    <Text style={cardStyles.statValue}>{stats.STR}</Text>
+                    <Text style={cardStyles.statLabel}>STR</Text>
+                  </View>
+                  <Text style={cardStyles.statDivider}>/</Text>
+                  <View style={cardStyles.inlineStatItem}>
+                    <Text style={cardStyles.statValue}>{stats.VOL}</Text>
+                    <Text style={cardStyles.statLabel}>VOL</Text>
+                  </View>
+                  <Text style={cardStyles.statDivider}>/</Text>
+                  <View style={cardStyles.inlineStatItem}>
+                    <Text style={cardStyles.statValue}>{stats.TMP}</Text>
+                    <Text style={cardStyles.statLabel}>TMP</Text>
+                  </View>
+                  <Text style={cardStyles.statDivider}>/</Text>
+                  <View style={cardStyles.inlineStatItem}>
+                    <Text style={cardStyles.statValue}>{stats.END}</Text>
+                    <Text style={cardStyles.statLabel}>END</Text>
+                  </View>
+                  <Text style={cardStyles.statDivider}>/</Text>
+                  <View style={cardStyles.inlineStatItem}>
+                    <Text style={cardStyles.statValue}>{stats.PHY}</Text>
+                    <Text style={cardStyles.statLabel}>PHY</Text>
+                  </View>
+                  <Text style={cardStyles.statDivider}>/</Text>
+                  <View style={cardStyles.inlineStatItem}>
+                    <Text style={cardStyles.statValue}>{stats.HYP}</Text>
+                    <Text style={cardStyles.statLabel}>HYP</Text>
+                  </View>
+                </View>
+              )}
+
+              <View style={styles.bottomButtonsWrapper}>
+                <TouchableOpacity
+                  style={styles.bottomButton}
+                  onPress={() => navigation.navigate('WorkoutSummaryScreen', {
                     workoutId: workout.workoutId,
                     workoutName: workout.name
-                  });
-                }}
-              >
-                <MaterialCommunityIcons name="cog" size={22} color={colors.text} />
-              </TouchableOpacity>
+                  })}
+                >
+                  <SummaryIcon size={22} color={colors.text} />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.bottomButton}
+                  onPress={() => {
+                    navigation.navigate('GenericWorkoutSettingsScreen', {
+                      workoutId: workout.workoutId,
+                      workoutName: workout.name
+                    });
+                  }}
+                >
+                  <MaterialCommunityIcons name="cog" size={22} color={colors.text} />
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
+        </FUTShield>
       </Swipeable>
-    </View>
+    </View >
   );
 });
+
+const cardStyles = StyleSheet.create({
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    opacity: 0.9,
+    justifyContent: 'center',
+    width: '100%',
+  },
+  inlineStatItem: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  statValue: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  statLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginLeft: 2,
+  },
+  statDivider: {
+    fontSize: 16,
+    color: '#FFF',
+    opacity: 0.2,
+    marginHorizontal: 4,
+  },
+});
+
+export default WorkoutCard;

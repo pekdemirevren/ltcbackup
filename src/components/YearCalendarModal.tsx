@@ -142,12 +142,7 @@ const YearCalendarModal: React.FC<YearCalendarModalProps> = ({ visible, onClose,
                             <Feather name="search" size={18} color="#FFF" />
                         </TouchableOpacity>
                         <View style={styles.headerRightSeparator} />
-                        <TouchableOpacity
-                            style={styles.headerRightIcon}
-                            onPress={onClose}
-                        >
-                            <Feather name="plus" size={22} color="#FFF" style={{ transform: [{ rotate: '45deg' }] }} />
-                        </TouchableOpacity>
+                        <View style={{ width: 44 }} />
                     </View>
                 </View>
 

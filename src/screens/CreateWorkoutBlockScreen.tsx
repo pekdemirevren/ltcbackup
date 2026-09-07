@@ -233,7 +233,7 @@ export function CreateWorkoutBlockScreen({ route, navigation }: CreateWorkoutBlo
                         </TouchableOpacity>
                         <Animated.View style={{ height: picker1Height, overflow: 'hidden' }}>
                             <Picker selectedValue={weight} onValueChange={setWeight} style={{ color: 'white' }} dropdownIconColor="white">
-                                {Array.from({ length: 200 }, (_, i) => (i + 1).toString()).map(v => <Picker.Item key={v} label={`${v} kg`} value={v} color="white" />)}
+                                {Array.from({ length: 500 }, (_, i) => (i + 1).toString()).map(v => <Picker.Item key={v} label={`${v} kg`} value={v} color="white" />)}
                             </Picker>
                         </Animated.View>
                     </>

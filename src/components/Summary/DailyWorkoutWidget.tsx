@@ -35,12 +35,12 @@ export type { WorkoutDayType };
 const getDefaultWorkoutsByDay = (dayType: WorkoutDayType): Workout[] => {
   const muscleGroups = WORKOUT_DAY_MUSCLE_GROUPS[dayType];
   if (!muscleGroups) return allWorkouts.slice(0, 4);
-  
+
   return allWorkouts.filter(w => muscleGroups.includes(w.muscleGroup));
 };
 
 interface DailyWorkoutWidgetProps {
-  workoutDay?: WorkoutDayType;
+  workoutDay?: WorkoutDayType | null;
   currentDay?: number;
   totalDays?: number;
   moveCount?: number;
@@ -51,7 +51,7 @@ interface DailyWorkoutWidgetProps {
 }
 
 export default function DailyWorkoutWidget({
-  workoutDay = 'LEG DAY',
+  workoutDay,
   currentDay = 5,
   totalDays = 7,
   moveCount,
@@ -64,16 +64,21 @@ export default function DailyWorkoutWidget({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadWorkoutData();
+    if (workoutDay) {
+      loadWorkoutData();
+    } else {
+      setLoading(false);
+    }
   }, [workoutIds, workoutDay]);
 
   const loadWorkoutData = async () => {
+    if (!workoutDay) return;
     try {
       // First check for saved cards for this workout day
       const savedIds = await loadWorkoutDayCards(workoutDay);
-      
+
       let targetWorkouts: Workout[];
-      
+
       if (savedIds.length > 0) {
         // Use saved card IDs
         targetWorkouts = savedIds
@@ -82,7 +87,7 @@ export default function DailyWorkoutWidget({
       } else if (workoutIds && workoutIds.length > 0) {
         // Use provided workout IDs
         targetWorkouts = workoutIds
-          .map(id => allWorkouts.find(w => w.workoutId === id))
+          .map(id => allWorkouts.find(w => w.workoutId === id || w.id === id))
           .filter((w): w is Workout => w !== undefined);
       } else {
         // Filter by muscle group based on workout day (default)
@@ -90,7 +95,7 @@ export default function DailyWorkoutWidget({
       }
 
       const cardsData: WorkoutCardData[] = [];
-      
+
       // Get first 4 workouts for compact view
       for (const workout of targetWorkouts.slice(0, 4)) {
         const settings = await loadWorkoutSettings(workout.workoutId);
@@ -107,15 +112,35 @@ export default function DailyWorkoutWidget({
 
   const displayMoveCount = moveCount ?? workoutCards.length;
 
+  if (!workoutDay) {
+    return (
+      <TouchableOpacity
+        style={DailyWorkoutWidgetStyle.widgetContainer}
+        onPress={onPress}
+        activeOpacity={0.8}
+      >
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <Feather name="calendar" size={32} color="#5E5E61" style={{ marginBottom: 8 }} />
+          <Text style={[DailyWorkoutWidgetStyle.workoutDayLabel, { color: '#5E5E61', marginBottom: 4 }]}>
+            No workout planned
+          </Text>
+          <Text style={{ color: '#9DEC2C', fontSize: 13, fontWeight: '600' }}>
+            Tap to plan on calendar
+          </Text>
+        </View>
+      </TouchableOpacity>
+    );
+  }
+
   return (
-    <TouchableOpacity 
+    <TouchableOpacity
       style={DailyWorkoutWidgetStyle.widgetContainer}
       onPress={onPress}
       activeOpacity={0.8}
     >
       {/* Üst Sol - Workout Day */}
       <Text style={[DailyWorkoutWidgetStyle.workoutDayLabel, { fontSize: 15 }]}>{workoutDay}</Text>
-      
+
       {/* 5/7 büyük sayı (5px altında) */}
       <Text style={[DailyWorkoutWidgetStyle.workoutDayCount, { fontSize: 48 }]}>
         {currentDay}/{totalDays}
@@ -136,15 +161,16 @@ export default function DailyWorkoutWidget({
           {workoutCards.map((card) => {
             const SvgIcon = card.workout.SvgIcon;
             const sets = card.settings.targetSets || '3';
+            const reps = card.settings.targetReps || '6';
             const weight = card.settings.weight || '0';
-            
+
             return (
               <View key={card.workout.workoutId} style={DailyWorkoutWidgetStyle.hourlyItem}>
-                {/* SET sayısı (üstte) */}
+                {/* SETSxREPS (üstte) */}
                 <Text style={[DailyWorkoutWidgetStyle.hourlyLabel, { fontSize: 13 }]}>
-                  {sets}SET
+                  {sets}x{reps}
                 </Text>
-                
+
                 {/* Kart SVG ikonu (koyu yeşil gradient yuvarlak) */}
                 <LinearGradient
                   colors={[IconGradientColors.start, IconGradientColors.end]}
@@ -154,7 +180,7 @@ export default function DailyWorkoutWidget({
                 >
                   {SvgIcon && <SvgIcon width={22} height={22} fill="#9DEC2C" />}
                 </LinearGradient>
-                
+
                 {/* KG (altta) */}
                 <Text style={[DailyWorkoutWidgetStyle.hourlyValue, { fontSize: 14 }]}>
                   {weight}KG

@@ -7,11 +7,43 @@ export const getStyles = (colors: ThemeContextType['colors']) => StyleSheet.crea
     backgroundColor: colors.background,
   },
   header: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
     paddingHorizontal: 24,
+    paddingBottom: 20,
+    zIndex: 100,
+  },
+  headerBlurContainer: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: 'hidden',
+    zIndex: 0,
+  },
+  headerBlur: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  headerCenterTitle: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
+  },
+  stickyTitleText: {
+    color: '#FFF',
+    fontSize: 17,
+    fontWeight: '600',
+  },
+  largeTitleContainer: {
+    paddingHorizontal: 0,
+    paddingTop: 80,
     paddingBottom: 20,
   },
   backButton: {
@@ -29,7 +61,8 @@ export const getStyles = (colors: ThemeContextType['colors']) => StyleSheet.crea
   },
   scrollContent: {
     paddingHorizontal: 24,
-    paddingTop: 16,
+    paddingTop: 120, // To avoid being covered by header
+    paddingBottom: 40,
   },
   card: {
     borderRadius: 16,

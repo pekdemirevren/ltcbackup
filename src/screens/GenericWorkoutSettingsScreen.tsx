@@ -381,43 +381,30 @@ export function GenericWorkoutSettingsScreen({ route, navigation }: GenericWorko
 
     const loadSettings = async () => {
         const settings = await loadWorkoutSettings(workoutId);
-        setCurrentSettings(settings);
+        const { initialSettings } = route.params as any;
+
+        if (initialSettings) {
+            setCurrentSettings({
+                ...settings,
+                targetSets: initialSettings.targetSets || settings.targetSets,
+                targetReps: initialSettings.targetReps || settings.targetReps,
+                weight: initialSettings.weight || settings.weight,
+            });
+        } else {
+            setCurrentSettings(settings);
+        }
     };
 
     const handleStartWorkout = async (isCustom: boolean = true) => {
         if (!currentSettings) return;
+        const { collectibleCardId, collectibleBaseLevel } = route.params || {};
 
         // Save current settings (though they should be saved by sub-screens)
         await saveWorkoutSettings(currentSettings);
 
         // Start timer with these settings
-        timerContext.startTimerWithWorkoutSettings(workoutId, workoutName);
+        timerContext.startTimerWithWorkoutSettings(workoutId, workoutName, collectibleCardId, collectibleBaseLevel);
 
-        // Navigate to Timer
-        // We can't easily navigate to Timer from here correctly without animationKey etc.
-        // Ideally we go back or use the handlePlayPress logic from WorkoutScreen.
-        // But the original SettingsScreen started the timer.
-        // For now, let's just go back to WorkoutScreen which feels safer or replicate start logic?
-        // The original SettingsScreen navigated to 'Timer'.
-
-        // Let's just go back for now as the "Play" button on cards usually implies starting that specific mode settings?
-        // In the original app, clicking play on "Loop" card started loop mode.
-        // Clicking play on "Time" card started custom settings.
-
-        // NOTE: For now I will just start the timer with loaded settings.
-        // But I need animationKey.
-
-        // Let's rely on the context updating and then navigating.
-        // Actually, proper way is to use the same logic as WorkoutScreen.handlePlayPress.
-        // But I don't have all that logic here easily.
-        // Let's make "Play" just go back to WorkoutScreen for now, or maybe just save?
-        // The original app started the timer.
-        // I'll leave the Play action empty or just log for now to avoid breaking things, 
-        // as the main entry point is WorkoutScreen.
-        // Using `timerContext.startTimerWithWorkoutSettings` updates the context.
-
-        // Actually, if I just update context and go back, user can press play on card.
-        // Or I can navigate to Timer.
         navigation.goBack();
     };
 
@@ -427,8 +414,10 @@ export function GenericWorkoutSettingsScreen({ route, navigation }: GenericWorko
 
     const handleNavigate = (screen: any, params: any) => {
         setModalVisible(false);
-        navigation.navigate(screen, params);
+        const { collectibleCardId, collectibleBaseLevel } = route.params || {};
+        navigation.navigate(screen, { ...params, collectibleCardId, collectibleBaseLevel });
     };
+
 
     const handleDeleteBlock = async (blockId: string) => {
         if (!currentSettings) return;
@@ -516,7 +505,7 @@ export function GenericWorkoutSettingsScreen({ route, navigation }: GenericWorko
             {/* Top Back Button */}
             <View style={styles.topBackButton}>
                 <TouchableOpacity onPress={handleBack} style={[styles.backButton, { backgroundColor: colors.backButtonBackground }]}>
-                    <Theme.Icons.back.lib width={32} height={32} color={colors.text} />
+                    <Theme.Icons.back.lib width={36} height={36} color={colors.text} />
                 </TouchableOpacity>
             </View>
 

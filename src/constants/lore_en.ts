@@ -1,0 +1,46 @@
+export const collectibleWorkouts = [
+    // ============= PULL (13 CARDS) =============
+    { id: 'pull_1', lore: "The Sphinx's riddle: excuse or repetition? The answer is the set itself." },
+    { id: 'pull_2', lore: "Medusa's warning: poor form freezes you in place; correct it, move forward." },
+    { id: 'pull_3', lore: "Daedalus' mastery: design the movement; the body will learn it." },
+    { id: 'pull_4', lore: "Icarus' lesson: do not fly too high; if form fails, the weight burns." },
+    { id: 'pull_5', lore: "Pegasus' lightness: flexibility brings speed, speed carries power." },
+    { id: 'pull_6', lore: "Perseus' strike: one correct movement, no unnecessary load." },
+    { id: 'pull_7', lore: "Nike's mark: a small increase today, a great victory tomorrow." },
+    { id: 'pull_8', lore: "Atlas' shoulder: carry the load; if the core doesn't break, the set doesn't end." },
+    { id: 'pull_9', lore: "Prometheus' spark: start today; the fire grows tomorrow." },
+    { id: 'pull_10', lore: "Athena's plan: it is not the weight, but the correct angle that wins." },
+    { id: 'pull_11', lore: "Artemis' target: one rep, one aim." },
+    { id: 'pull_12', lore: "Apollo's rhythm: your breath is the metronome; repetitions are like music." },
+    { id: 'pull_13', lore: "Hermes' flow: recover quickly between sets, fly through the reps." },
+
+    // ============= PUSH (13 CARDS) =============
+    { id: 'push_1', lore: "Hydra's pressure: it multiplies as you tire; tame it with volume." },
+    { id: 'push_2', lore: "Chimera mode: strength + conditioning; two trials in one body." },
+    { id: 'push_3', lore: "Cyclopes' gaze: choose one cue; let the whole set follow it." },
+    { id: 'push_4', lore: "Pan's energy: fun is sustainable power." },
+    { id: 'push_5', lore: "Helios' day: a little every day; light accumulates, power grows." },
+    { id: 'push_6', lore: "Heracles' labor: heavy sets are not 'work'; they are a legendary routine." },
+    { id: 'push_7', lore: "Aphrodite's form: control and pump, like a stage performance." },
+    { id: 'push_8', lore: "Hyperion's glow: raise the energy, illuminate the set." },
+    { id: 'push_9', lore: "Themis' balance: left and right equal; fair form keeps injury away." },
+    { id: 'push_10', lore: "Zeus' decree: bring down even the last rep of the set like a command." },
+    { id: 'push_11', lore: "Ares' fire: short, hard, without hesitation." },
+    { id: 'push_12', lore: "Hephaestus hammers: patience for joints, steel for strength." },
+    { id: 'push_13', lore: "Hera's order: the crown of the program is consistency." },
+
+    // ============= LEGS (13 CARDS) =============
+    { id: 'legs_1', lore: "Minotaur's labyrinth: only one way out; keep moving forward." },
+    { id: 'legs_2', lore: "Cerberus waits: do not skip training; pass through the gate." },
+    { id: 'legs_3', lore: "Centaur balance: release the power, do not lose control." },
+    { id: 'legs_4', lore: "The rule from Hades, the control from Cerberus: order is never broken." },
+    { id: 'legs_5', lore: "Persephone's cycle: rest is the fuel for your return." },
+    { id: 'legs_6', lore: "Coeus' intelligence: research the technique; power is born from knowledge." },
+    { id: 'legs_7', lore: "Crius' direction: the same line every week; the route is fixed." },
+    { id: 'legs_8', lore: "Cronus' cycle: swallow the volume, reach the peak within weeks." },
+    { id: 'legs_9', lore: "Chronos' rule: measure the rest; power increases when time is controlled." },
+    { id: 'legs_10', lore: "Hades mode: finish where no one sees; advance without breaking tempo." },
+    { id: 'legs_11', lore: "Demeter grows: good sleep + good food = muscle harvest." },
+    { id: 'legs_12', lore: "Poseidon's flow: breath, rhythm, continuous power." },
+    { id: 'legs_13', lore: "Dionysus' flow: turn the workout into joy, sustain it." }
+];

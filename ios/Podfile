@@ -25,10 +25,11 @@ target 'kurtarltcNew' do
       :mac_catalyst_enabled => false
     )
     
-    # Fix for Folly compilation issue with Xcode 15+
+    # Fix for Folly compilation issue and user script sandboxing with Xcode 15+
     installer.pods_project.targets.each do |target|
       target.build_configurations.each do |config|
         config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)', '_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION']
+        config.build_settings['ENABLE_USER_SCRIPT_SANDBOXING'] = 'NO'
       end
     end
   end

@@ -41,7 +41,7 @@ export const colors = { // darkColors'ı doğrudan colors olarak dışa aktarıy
     cardModal: '#4A2C6B',
   },
   quickStart: {
-    primary: '#A3E635',
+    primary: '#9DEC2C',
     card: '#1A2E05',
   },
   saveButtonGradient: ['#FACC15', '#EAB308'],
@@ -67,6 +67,7 @@ export const Icons = {
   customize: { name: 'sliders', lib: Feather },
   theme: { name: 'sun', lib: Feather }, // Aydınlık mod için
   legPress: { lib: LegPressIcon },
+  dropdown: { name: 'chevron-down', lib: MaterialCommunityIcons },
 };
 
 // Renkleri ve İkonları tek bir yerden export et

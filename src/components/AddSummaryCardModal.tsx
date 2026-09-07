@@ -156,6 +156,13 @@ export default function AddSummaryCardModal({ visible, onClose, onCardAdded }: A
             const storedSummaries = await AsyncStorage.getItem('workoutSummaries');
             const allSummaries = storedSummaries ? JSON.parse(storedSummaries) : [];
 
+            const storedCards = await AsyncStorage.getItem(SUMMARY_CARD_STORAGE_KEY);
+            if (storedCards) {
+                setVisibleCardIds(JSON.parse(storedCards));
+            } else {
+                setVisibleCardIds(DEFAULT_VISIBLE_CARDS);
+            }
+
             const today = new Date().toDateString();
 
 
@@ -1091,15 +1098,18 @@ export default function AddSummaryCardModal({ visible, onClose, onCardAdded }: A
     } else if (isTrendsMode) {
         carouselCards = [
             { id: 'Trends_Grid', title: 'Trends', description: 'Monitor your weekly averages for energy, strength, and consistency.', color: MetricColors.energy },
-            { id: 'Trends_Energy', title: 'Energy', description: 'Track your average daily energy from your workouts.', color: MetricColors.energy, value: trendStats.energy.toString(), unit: 'KCAL/DAY' },
-            { id: 'Trends_Strength', title: 'Strength', description: 'Track your average daily weight from your workouts.', color: MetricColors.weight, value: trendStats.strength.toString(), unit: 'KG/DAY' },
-            { id: 'Trends_Sets', title: 'Sets', description: 'Track your average daily sets from your workouts.', color: MetricColors.sets, value: trendStats.sets.toString(), unit: 'SETS/DAY' },
-            { id: 'Trends_Consistency', title: 'Consistency', description: 'Track your workout consistency and frequency.', color: '#00C7BE', value: trendStats.consistency.toString(), unit: '%' },
-            { id: 'Trends_Cadence', title: 'Cadence', description: 'Track your average daily reps from your workouts.', color: MetricColors.speed, value: trendStats.cadence.toString(), unit: 'REPS/DAY' },
-            { id: 'Trends_Density', title: 'Density', description: 'Track your average active time from your workouts.', color: '#9DEC2C', value: trendStats.density.toString(), unit: 'MIN/DAY' },
-            { id: 'Trends_Intensity', title: 'Intensity', description: 'Track your average rest time from your workouts.', color: MetricColors.energy, value: trendStats.intensity.toString(), unit: 'MIN/DAY' },
-            { id: 'Trends_Endurance', title: 'Endurance', description: 'Track your average workout duration from your workouts.', color: MetricColors.duration, value: trendStats.endurance.toString(), unit: 'MIN/DAY' },
-            { id: 'Trends_Balance', title: 'Balance', description: 'Track your workout variety score from your workouts.', color: '#D1A3FF', value: trendStats.balance.toString(), unit: '%' }
+            { id: 'Trends_Energy', title: 'Energy', metricTitle: 'Energy', description: 'Track your average daily energy from your workouts.', color: MetricColors.energy, value: trendStats.energy.toString(), unit: 'KCAL/DAY' },
+            { id: 'Trends_Strength', title: 'Volume', metricTitle: 'Volume', description: 'Track your average daily weight from your workouts.', color: MetricColors.weight, value: trendStats.strength.toString(), unit: 'KG/DAY' },
+            { id: 'Trends_OneRM', title: '1RM', metricTitle: '1RM', description: 'Track your estimated One Rep Max progression.', color: '#F9104E', value: '0', unit: 'KG' },
+            { id: 'Trends_Progression', title: 'Progression', metricTitle: 'Volume', description: 'Compare your volume and strength against last month.', color: '#FF9F0A', value: '0', unit: '%' },
+            { id: 'Trends_RPE', title: 'RPE', metricTitle: 'RPE', description: 'Track your Rate of Perceived Exertion and intensity.', color: '#BF5AF2', value: '0', unit: '' },
+            { id: 'Trends_Sets', title: 'Sets', metricTitle: 'Sets', description: 'Track your average daily sets from your workouts.', color: MetricColors.sets, value: trendStats.sets.toString(), unit: 'SETS/DAY' },
+            { id: 'Trends_Consistency', title: 'Consistency', metricTitle: 'Consistency', description: 'Track your workout consistency and frequency.', color: '#00C7BE', value: trendStats.consistency.toString(), unit: '%' },
+            { id: 'Trends_Cadence', title: 'Cadence', metricTitle: 'Cadence', description: 'Track your average daily reps from your workouts.', color: MetricColors.speed, value: trendStats.cadence.toString(), unit: 'REPS/DAY' },
+            { id: 'Trends_Density', title: 'Density', metricTitle: 'Density', description: 'Track your average active time from your workouts.', color: '#9DEC2C', value: trendStats.density.toString(), unit: 'MIN/DAY' },
+            { id: 'Trends_Intensity', title: 'Intensity', metricTitle: 'Intensity', description: 'Track your average rest time from your workouts.', color: MetricColors.energy, value: trendStats.intensity.toString(), unit: 'MIN/DAY' },
+            { id: 'Trends_Endurance', title: 'Endurance', metricTitle: 'Endurance', description: 'Track your average workout duration from your workouts.', color: MetricColors.duration, value: trendStats.endurance.toString(), unit: 'MIN/DAY' },
+            { id: 'Trends_Balance', title: 'Balance', metricTitle: 'Balance', description: 'Track your workout variety score from your workouts.', color: '#D1A3FF', value: trendStats.balance.toString(), unit: '%' }
         ];
     } else if (isWorkoutsMode) {
         // Eğer bir workout seçiliyse sadece o workout'un 9 metriğini göster
@@ -1174,15 +1184,19 @@ export default function AddSummaryCardModal({ visible, onClose, onCardAdded }: A
     } else {
         // Global metrics (Set Count, Strength Level, etc.)
         carouselCards = [
-            { id: 'DailyWorkout', title: 'Daily Workout', description: 'Your daily workout plan and schedule at a glance.', color: '#9DEC2C' },
             { id: 'SetCount', title: 'Set Count', metricTitle: 'Set Count', color: MetricColors.sets, unit: 'SET', value: statsDetail.sets.toString(), chart: statsDetail.charts.sets || [], description: 'A quick glance at your total set count for the day.' },
-            { id: 'StrengthLevel', title: 'Strength Level', metricTitle: 'Strength Level', color: MetricColors.weight, unit: 'KG', value: statsDetail.strength.toString(), chart: statsDetail.charts.strength || [], description: 'Your total strength volume calculated for the day.' },
+            { id: 'StrengthLevel', title: 'Volume', metricTitle: 'Volume', color: MetricColors.weight, unit: 'KG', value: statsDetail.strength.toString(), chart: statsDetail.charts.strength || [], description: 'Your total strength volume calculated for the day.' },
             { id: 'Energy', title: 'Energy', metricTitle: 'Energy', color: MetricColors.energy, unit: 'KCAL', value: (statsDetail.energy || 0).toString(), chart: statsDetail.charts.energy || [], description: 'Track your total energy burned throughout the day.' },
             { id: 'Endurance', title: 'Endurance', metricTitle: 'Endurance', color: MetricColors.duration, unit: 'MIN', value: (statsDetail.endurance || 0).toString(), chart: statsDetail.charts.endurance || [], description: 'Monitor your total workout duration for the day.' },
             { id: 'Cadence', title: 'Cadence', metricTitle: 'Cadence', color: MetricColors.speed, unit: 's/r', value: statsDetail.cadence.toString(), chart: statsDetail.charts.cadence || [], description: 'Track your workout cadence and rhythm throughout the session.' },
             { id: 'Intensity', title: 'Intensity', metricTitle: 'Intensity', color: MetricColors.energy, unit: '', value: statsDetail.intensity, chart: statsDetail.charts.intensity || [], description: 'Measure your workout intensity based on rest and active ratios.' },
             { id: 'Density', title: 'Density', metricTitle: 'Density', color: '#9DEC2C', unit: '%', value: statsDetail.density.toString(), chart: statsDetail.charts.density || [], description: 'Monitor your workout density and overall efficiency.' },
             { id: 'Balance', title: 'Balance', metricTitle: 'Balance', color: '#EC4899', unit: '%', value: (statsDetail.balance || 0).toString(), chart: statsDetail.charts.balance || [], description: 'Track your workout balance between different muscle groups.' },
+            { id: 'Stats_OneRM', title: '1RM', metricTitle: '1RM', description: 'Track your estimated One Rep Max progression.', color: '#F9104E', value: '0', unit: 'KG', chart: [0, 0, 0, 0, 0, 0] },
+            { id: 'Stats_Progression', title: 'Progression', metricTitle: 'Volume', description: 'Compare your volume and strength against last month.', color: '#FF9F0A', value: '0', unit: '%', chart: [0, 0, 0, 0, 0, 0] },
+            { id: 'Stats_RPE', title: 'RPE', metricTitle: 'RPE', description: 'Track your Rate of Perceived Exertion and intensity.', color: '#BF5AF2', value: '0', unit: '', chart: [0, 0, 0, 0, 0, 0] },
+            { id: 'ActivityRing', title: 'Activity Ring', description: 'Monitor your daily move goal and activity levels.', color: '#F9104E', value: '0', unit: '', chart: [] },
+            { id: 'DailyWorkout', title: 'Daily Workout', description: 'Quick access to your planned workout for today.', color: '#9DEC2C', value: '0', unit: '', chart: [] },
         ];
     }
 

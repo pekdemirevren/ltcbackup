@@ -49,7 +49,7 @@ export function WeightSelectionScreen({ route, navigation }: WeightSelectionScre
 
   const { colors } = themeContext;
 
-  const [weight, setWeight] = useState(settings?.weight?.toString() || '75');
+  const [weight, setWeight] = useState(settings?.weight ? parseFloat(settings.weight.toString()).toFixed(2) : '75.00');
   const [isPickerVisible, setIsPickerVisible] = useState(false);
   const pickerHeight = React.useRef(new Animated.Value(0)).current;
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
@@ -62,13 +62,13 @@ export function WeightSelectionScreen({ route, navigation }: WeightSelectionScre
         if (blockId && workoutId) {
           const loadedSettings = await loadWorkoutSettings(workoutId);
           const block = loadedSettings.customBlocks?.find((b: any) => b.id === blockId);
-          if (block && block.settings.weight) {
-            setWeight(block.settings.weight);
+          if (block && block.settings.weight && !settings?.weight) {
+            setWeight(parseFloat(block.settings.weight).toFixed(2));
           }
         } else if (workoutId) {
           const loadedSettings = await loadWorkoutSettings(workoutId);
-          if (loadedSettings.weight) {
-            setWeight(loadedSettings.weight);
+          if (loadedSettings.weight && !settings?.weight) {
+            setWeight(parseFloat(loadedSettings.weight).toFixed(2));
           }
         }
         setInitialLoadComplete(true);
@@ -199,7 +199,7 @@ export function WeightSelectionScreen({ route, navigation }: WeightSelectionScre
             itemStyle={styles.pickerItem}
             style={{ height: 170 }}
           >
-            {Array.from({ length: 800 }, (_, i) => ((i + 1) * 0.25).toFixed(2)).map(val => (
+            {Array.from({ length: 2000 }, (_, i) => ((i + 1) * 0.25).toFixed(2)).map(val => (
               <Picker.Item key={val} label={`${val} kg`} value={val} />
             ))}
           </Picker>

@@ -1,17 +1,42 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView } from 'react-native';
+import React, { useState, useEffect, useContext, useRef, useMemo } from 'react';
+import { View, Text, TouchableOpacity, Animated, Easing, StatusBar } from 'react-native';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import Feather from 'react-native-vector-icons/Feather';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StackScreenProps } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/RootNavigator';
-import Feather from 'react-native-vector-icons/Feather';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { Picker } from '@react-native-picker/picker';
+import LinearGradient from 'react-native-linear-gradient';
+import { LiquidGlassButton } from '../components/LiquidGlass';
+import { ThemeContext } from '../contexts/ThemeContext';
+import { getStyles } from '../styles/AdjustMoveGoalScreen.styles';
 
 type Props = StackScreenProps<RootStackParamList, 'AdjustMoveGoal'>;
 
 export default function AdjustMoveGoalScreen({ navigation }: Props) {
-  const [goal, setGoal] = useState(500);
-  const intervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
-  const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { colors, Icons } = useContext(ThemeContext)!;
+  const [weight, setWeight] = useState(100);
+  const [reps, setReps] = useState(5);
+  const [bodyWeight, setBodyWeight] = useState(75);
+  const [expandedType, setExpandedType] = useState<'weight' | 'reps' | 'bodyWeight' | null>(null);
+
+  const pickerHeight = useRef(new Animated.Value(0)).current;
+  const scrollY = useRef(new Animated.Value(0)).current;
+
+  const stickyHeaderOpacity = scrollY.interpolate({
+    inputRange: [40, 70],
+    outputRange: [0, 1],
+    extrapolate: 'clamp'
+  });
+
+  const stickyTitleTranslateY = scrollY.interpolate({
+    inputRange: [40, 70],
+    outputRange: [10, 0],
+    extrapolate: 'clamp'
+  });
+
+  const styles = useMemo(() => getStyles(colors, expandedType !== null), [colors, expandedType]);
 
   useEffect(() => {
     loadTodayGoal();
@@ -19,26 +44,28 @@ export default function AdjustMoveGoalScreen({ navigation }: Props) {
 
   const loadTodayGoal = async () => {
     try {
-      // Check for override first
       const todayStr = new Date().toDateString();
       const storedOverride = await AsyncStorage.getItem('dailyMoveGoalOverride');
 
       if (storedOverride) {
         const override = JSON.parse(storedOverride);
         if (override.date === todayStr) {
-          setGoal(override.goal);
+          setWeight(override.weight || 100);
+          setReps(override.reps || 5);
+          setBodyWeight(override.bodyWeight || 75);
           return;
         }
       }
 
-      // Fallback to schedule
       const storedSchedule = await AsyncStorage.getItem('moveGoalSchedule');
       if (storedSchedule) {
         const schedule = JSON.parse(storedSchedule);
         const dayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
         const dayItem = schedule.find((s: any) => s.day === dayName);
         if (dayItem) {
-          setGoal(dayItem.goal);
+          setWeight(dayItem.weight || 100);
+          setReps(dayItem.reps || 5);
+          setBodyWeight(dayItem.bodyWeight || 75);
         }
       }
     } catch (e) {
@@ -49,190 +76,262 @@ export default function AdjustMoveGoalScreen({ navigation }: Props) {
   const saveTodayGoal = async () => {
     try {
       const todayStr = new Date().toDateString();
-      const override = { date: todayStr, goal };
+      const override = { date: todayStr, weight, reps, bodyWeight };
       await AsyncStorage.setItem('dailyMoveGoalOverride', JSON.stringify(override));
+      await AsyncStorage.setItem('userBodyWeight', String(bodyWeight));
+
+      // Sync to all days in the schedule
+      const storedSchedule = await AsyncStorage.getItem('moveGoalSchedule');
+      if (storedSchedule) {
+        const schedule = JSON.parse(storedSchedule);
+        const updatedSchedule = schedule.map((day: any) => ({
+          ...day,
+          weight,
+          reps,
+          bodyWeight,
+        }));
+        await AsyncStorage.setItem('moveGoalSchedule', JSON.stringify(updatedSchedule));
+      } else {
+        // Create new schedule with all days
+        const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        const newSchedule = days.map(day => ({ day, weight, reps, bodyWeight }));
+        await AsyncStorage.setItem('moveGoalSchedule', JSON.stringify(newSchedule));
+      }
+
       navigation.goBack();
     } catch (e) {
       console.error('Failed to save today goal', e);
     }
   };
 
-  const adjustGoal = (amount: number) => {
-    setGoal(prev => Math.max(10, prev + amount));
+  const togglePicker = (type: 'weight' | 'reps' | 'bodyWeight') => {
+    if (expandedType === type) {
+      // Close
+      Animated.timing(pickerHeight, {
+        toValue: 0,
+        duration: 200,
+        easing: Easing.ease,
+        useNativeDriver: false,
+      }).start(() => setExpandedType(null));
+    } else {
+      // Open
+      if (expandedType !== null) {
+        // Swap
+        Animated.timing(pickerHeight, {
+          toValue: 0,
+          duration: 150,
+          easing: Easing.ease,
+          useNativeDriver: false,
+        }).start(() => {
+          setExpandedType(type);
+          Animated.timing(pickerHeight, {
+            toValue: 200,
+            duration: 200,
+            easing: Easing.ease,
+            useNativeDriver: false,
+          }).start();
+        });
+      } else {
+        setExpandedType(type);
+        Animated.timing(pickerHeight, {
+          toValue: 200,
+          duration: 200,
+          easing: Easing.ease,
+          useNativeDriver: false,
+        }).start();
+      }
+    }
   };
 
-  const startAdjusting = (amount: number) => {
-    adjustGoal(amount);
-    timeoutRef.current = setTimeout(() => {
-      intervalRef.current = setInterval(() => {
-        adjustGoal(amount);
-      }, 200);
-    }, 500);
-  };
-
-  const stopAdjusting = () => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-  };
+  const calculated1RM = Math.round(weight * (1 + reps / 30));
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeButton}>
-          <Feather name="x" size={24} color="#FFF" />
-        </TouchableOpacity>
-      </View>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" />
+      <View style={{ flex: 1 }}>
 
-      <View style={styles.content}>
-        <Text style={styles.title}>Today's Move Goal</Text>
-        <Text style={styles.description}>
-          Set a temporary Move goal just for today based on how active you'd like to be. This does not affect your current goal schedule.
-        </Text>
+        {/* Header Buttons - Absolute Top */}
+        <View style={styles.absoluteHeaderRow}>
+          {/* Sticky Background */}
+          <Animated.View style={[styles.stickyHeaderBackground, { opacity: stickyHeaderOpacity }]} pointerEvents="none">
+            <LinearGradient
+              colors={[colors.cardBackground, 'transparent']}
+              locations={[0.6, 1]}
+              style={{ flex: 1 }}
+            />
+          </Animated.View>
 
-        <View style={styles.controlsContainer}>
           <TouchableOpacity
-            style={styles.controlButton}
-            onPressIn={() => startAdjusting(-10)}
-            onPressOut={stopAdjusting}
+            onPress={() => navigation.goBack()}
+            style={styles.headerIconButton}
           >
-            <MaterialCommunityIcons name="minus" size={32} color="#000" />
+            <Feather name="x" size={28} color={colors.text} />
           </TouchableOpacity>
 
-          <View style={styles.valueContainer}>
-            <Text style={styles.valueText}>{goal}</Text>
-            <Text style={styles.unitText}>KILOCALORIES/DAY</Text>
+          <Animated.View style={{ opacity: stickyHeaderOpacity, transform: [{ translateY: stickyTitleTranslateY }] }}>
+            <Text style={styles.stickyHeaderTitle}>Today's 1RM Goal</Text>
+          </Animated.View>
+
+          {/* Spacer to keep title centered */}
+          <View style={{ width: 48 }} />
+        </View>
+
+        <Animated.ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+            { useNativeDriver: false }
+          )}
+        >
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>Today's 1RM Goal</Text>
           </View>
 
-          <TouchableOpacity
-            style={styles.controlButton}
-            onPressIn={() => startAdjusting(10)}
-            onPressOut={stopAdjusting}
+          <View style={{ paddingHorizontal: 13, marginBottom: 20 }}>
+            <Text style={styles.description}>
+              Set a 1RM goal for today to track your progress and stay motivated.
+            </Text>
+          </View>
+
+          <View style={styles.pickerContainer}>
+            {/* Weight Row */}
+            <View style={styles.pickerSection}>
+              <TouchableOpacity
+                style={[
+                  styles.pickerCard,
+                  {
+                    borderBottomLeftRadius: expandedType === 'weight' ? 0 : 32,
+                    borderBottomRightRadius: expandedType === 'weight' ? 0 : 32,
+                  }
+                ]}
+                onPress={() => togglePicker('weight')}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.pickerCardLabel}>Weight</Text>
+                <View style={styles.valueContainer}>
+                  <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+                    <Text style={[styles.valueText, { color: expandedType === 'weight' ? colors.time.primary : colors.text }]}>{weight}</Text>
+                    <Text style={[styles.valueUnit, { color: expandedType === 'weight' ? colors.time.primary : colors.text }]}>KG</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+              {expandedType === 'weight' && (
+                <Animated.View style={[styles.expandedPickerContainer, { height: pickerHeight }]}>
+                  <Text style={styles.pickerColLabel}>Weight</Text>
+                  <View style={styles.recessedPickerWrapper}>
+                    <Picker
+                      selectedValue={weight}
+                      onValueChange={(itemValue) => setWeight(itemValue)}
+                      style={styles.pickerControl}
+                      itemStyle={styles.pickerItem}
+                    >
+                      {Array.from({ length: 100 }, (_, i) => (i + 1) * 5).map(val => (
+                        <Picker.Item key={val} label={String(val)} value={val} color={colors.text} />
+                      ))}
+                    </Picker>
+                  </View>
+                </Animated.View>
+              )}
+            </View>
+
+            {/* Reps Row */}
+            <View style={styles.pickerSection}>
+              <TouchableOpacity
+                style={[
+                  styles.pickerCard,
+                  {
+                    borderBottomLeftRadius: expandedType === 'reps' ? 0 : 32,
+                    borderBottomRightRadius: expandedType === 'reps' ? 0 : 32,
+                  }
+                ]}
+                onPress={() => togglePicker('reps')}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.pickerCardLabel}>Reps</Text>
+                <View style={styles.valueContainer}>
+                  <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+                    <Text style={[styles.valueText, { color: expandedType === 'reps' ? colors.time.primary : colors.text }]}>{reps}</Text>
+                    <Text style={[styles.valueUnit, { color: expandedType === 'reps' ? colors.time.primary : colors.text }]}>TIMES</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+              {expandedType === 'reps' && (
+                <Animated.View style={[styles.expandedPickerContainer, { height: pickerHeight }]}>
+                  <Text style={styles.pickerColLabel}>Reps</Text>
+                  <View style={styles.recessedPickerWrapper}>
+                    <Picker
+                      selectedValue={reps}
+                      onValueChange={(itemValue) => setReps(itemValue)}
+                      style={styles.pickerControl}
+                      itemStyle={styles.pickerItem}
+                    >
+                      {Array.from({ length: 30 }, (_, i) => i + 1).map(val => (
+                        <Picker.Item key={val} label={String(val)} value={val} color={colors.text} />
+                      ))}
+                    </Picker>
+                  </View>
+                </Animated.View>
+              )}
+            </View>
+
+            {/* Body Weight Row */}
+            <View style={styles.pickerSection}>
+              <TouchableOpacity
+                style={[
+                  styles.pickerCard,
+                  {
+                    borderBottomLeftRadius: expandedType === 'bodyWeight' ? 0 : 32,
+                    borderBottomRightRadius: expandedType === 'bodyWeight' ? 0 : 32,
+                  }
+                ]}
+                onPress={() => togglePicker('bodyWeight')}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.pickerCardLabel}>Body Weight</Text>
+                <View style={styles.valueContainer}>
+                  <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+                    <Text style={[styles.valueText, { color: expandedType === 'bodyWeight' ? colors.time.primary : colors.text }]}>{bodyWeight}</Text>
+                    <Text style={[styles.valueUnit, { color: expandedType === 'bodyWeight' ? colors.time.primary : colors.text }]}>KG</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+              {expandedType === 'bodyWeight' && (
+                <Animated.View style={[styles.expandedPickerContainer, { height: pickerHeight }]}>
+                  <Text style={styles.pickerColLabel}>Body Weight</Text>
+                  <View style={styles.recessedPickerWrapper}>
+                    <Picker
+                      selectedValue={bodyWeight}
+                      onValueChange={(itemValue) => setBodyWeight(itemValue)}
+                      style={styles.pickerControl}
+                      itemStyle={styles.pickerItem}
+                    >
+                      {Array.from({ length: 150 }, (_, i) => i + 30).map(val => (
+                        <Picker.Item key={val} label={String(val)} value={val} color={colors.text} />
+                      ))}
+                    </Picker>
+                  </View>
+                </Animated.View>
+              )}
+            </View>
+          </View>
+
+          <View style={styles.calculated1RMContainer}>
+            <Text style={styles.calculated1RMLabel}>ESTIMATED 1RM</Text>
+            <Text style={styles.calculated1RMValue}>{calculated1RM} KG</Text>
+          </View>
+        </Animated.ScrollView>
+
+        <View style={styles.footer}>
+          <LiquidGlassButton
+            onPress={saveTodayGoal}
+            style={styles.actionButton}
           >
-            <MaterialCommunityIcons name="plus" size={32} color="#000" />
-          </TouchableOpacity>
+            <Text style={styles.actionButtonText}>Change 1RM Goal for Today</Text>
+          </LiquidGlassButton>
         </View>
       </View>
-
-      <View style={styles.footer}>
-        <TouchableOpacity style={styles.actionButton} onPress={saveTodayGoal}>
-          <Text style={styles.actionButtonText}>Change Move Goal for Today</Text>
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
+    </View >
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#1C1C1E', // Dark gray background like modal
-  },
-  header: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-  },
-  closeButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#2C2C2E',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  infoBox: {
-    position: 'absolute',
-    top: 0,
-    backgroundColor: '#2C2C2E',
-    padding: 12,
-    borderRadius: 16,
-    alignItems: 'center',
-    width: '100%',
-    marginBottom: 20,
-    display: 'none' // Hiding this as it seems like a system notification in the screenshot
-  },
-  infoHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4
-  },
-  infoTitle: {
-    color: '#FFF',
-    fontWeight: '600',
-    marginLeft: 6
-  },
-  infoSubtitle: {
-    color: '#8E8E93',
-    fontSize: 12
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#FFF',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  description: {
-    fontSize: 16,
-    color: '#8E8E93',
-    textAlign: 'center',
-    marginBottom: 40,
-    lineHeight: 22,
-  },
-  controlsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '100%',
-    paddingHorizontal: 20,
-  },
-  controlButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#FA114F',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  valueContainer: {
-    alignItems: 'center',
-  },
-  valueText: {
-    fontSize: 64,
-    fontWeight: '600',
-    color: '#FFF',
-    fontVariant: ['tabular-nums'],
-  },
-  unitText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FFF',
-    marginTop: 4,
-    letterSpacing: 0.5,
-  },
-  footer: {
-    padding: 24,
-  },
-  actionButton: {
-    backgroundColor: '#2C2C2E',
-    paddingVertical: 16,
-    borderRadius: 30,
-    alignItems: 'center',
-  },
-  actionButtonText: {
-    color: '#CCFF00', // Lime green color from screenshot
-    fontSize: 16,
-    fontWeight: '600',
-  },
-});

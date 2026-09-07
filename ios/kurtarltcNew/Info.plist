@@ -65,5 +65,11 @@
 	<string>Bu uygulama antrenman etkinliklerinizi takviminize eklemek için takvim erişimi gerektirir.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Bu uygulama antrenman etkinliklerinizi takviminize eklemek ve mevcut etkinliklerinizi görüntülemek için takvim erişimi gerektirir.</string>
+	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+	<string>Takviminize antrenman etkinliği eklemek için erişim gerektirir.</string>
+	<key>NSRemindersUsageDescription</key>
+	<string>Bu uygulama antrenman hatırlatıcıları oluşturmak için erişim gerektirir.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>Bu uygulama antrenman hatırlatıcılarını yönetmek için tam erişim gerektirir.</string>
 </dict>
 </plist>

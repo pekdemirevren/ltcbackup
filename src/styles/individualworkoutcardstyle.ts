@@ -28,7 +28,7 @@ export const IndividualWorkoutCardStyle = StyleSheet.create({
         paddingBottom: SquareCardMeasurements.padding - 2,
         justifyContent: 'flex-start',
     },
-    
+
     // Başlık (Workout) - fontsize 17 diğer kartlarla eşit
     individualWorkoutHeader: {
         fontSize: 17,
@@ -38,7 +38,7 @@ export const IndividualWorkoutCardStyle = StyleSheet.create({
         marginLeft: SquareCardMeasurements.workout.headerMarginLeft,
         transform: [{ translateY: 2 }, { translateX: 4 }], // Modal carousel ile aynı
     },
-    
+
     // İçerik container - Modal carousel ile aynı ölçüler
     individualWorkoutIconContainer: {
         width: '113%', // Modal carousel ile aynı
@@ -54,7 +54,7 @@ export const IndividualWorkoutCardStyle = StyleSheet.create({
         height: 120, // Modal carousel ile aynı
         alignSelf: 'center',
     },
-    
+
     // İkon wrapper - ikon 4 birim büyütüldü, boşluk 1 birim azaltıldı
     individualWorkoutIconWrapper: {
         width: 77,
@@ -65,7 +65,7 @@ export const IndividualWorkoutCardStyle = StyleSheet.create({
         marginLeft: 0,
         marginBottom: 3,
     },
-    
+
     // Workout adı
     individualWorkoutName: {
         fontSize: SquareCardMeasurements.workout.nameFontSize,
@@ -73,18 +73,18 @@ export const IndividualWorkoutCardStyle = StyleSheet.create({
         color: '#FFF',
         marginTop: -2,
     },
-    
+
     // Action row (play icon + text)
     individualWorkoutActionRow: {
         flexDirection: 'row',
         alignItems: 'center',
         marginTop: 2,
     },
-    
+
     // Action text
     individualWorkoutActionText: {
         fontSize: SquareCardMeasurements.workout.actionFontSize,
-        color: '#9DEC2C',
+        color: '#FFFFFF',
         marginLeft: 4,
         fontWeight: '500',
     },

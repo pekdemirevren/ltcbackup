@@ -17,8 +17,19 @@ export { WORKOUT_IDS };
  * Get workout by ID
  */
 export function getWorkoutById(workoutId: string) {
-  return allWorkouts.find(w => w.workoutId === workoutId);
+  const found = allWorkouts.find(w => w.workoutId === workoutId);
+  if (found) return found;
+
+  // If not found, check if it's a combined ID (e.g., cardId_workoutId)
+  if (workoutId && workoutId.includes('_')) {
+    const parts = workoutId.split('_');
+    const baseId = parts[parts.length - 1]; // Take the last part (the exercise ID)
+    return allWorkouts.find(w => w.workoutId === baseId);
+  }
+
+  return undefined;
 }
+
 
 /**
  * Get workout by name

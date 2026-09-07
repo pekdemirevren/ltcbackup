@@ -10,6 +10,9 @@
     "Sharing Screen Design",
     "old_project_source.bak",
     "src/assets/icons",
-    "vendor"
+    "vendor",
+    "src/components/backupcollaps.tsx",
+    "src/components/CollapsibleCalendarCard.backup.tsx",
+    "src/components/WorkoutCalendarScreenreferans.tsx"
   ]
 }

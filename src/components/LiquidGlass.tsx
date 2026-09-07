@@ -52,6 +52,7 @@ interface LiquidGlassProps {
   variant?: 'default' | 'prominent' | 'subtle';
   interactive?: boolean;
   effect?: 'clear' | 'regular';
+  contentStyle?: StyleProp<ViewStyle>;
 }
 
 export const LiquidGlass: React.FC<LiquidGlassProps> = ({
@@ -70,6 +71,7 @@ export const LiquidGlass: React.FC<LiquidGlassProps> = ({
   variant = 'default',
   interactive = true,
   effect = 'regular',
+  contentStyle,
 }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const opacityAnim = useRef(new Animated.Value(1)).current;
@@ -95,36 +97,12 @@ export const LiquidGlass: React.FC<LiquidGlassProps> = ({
 
   const handlePressIn = () => {
     setIsPressed(true);
-    Animated.parallel([
-      Animated.spring(scaleAnim, {
-        toValue: 1 - elasticity,
-        useNativeDriver: true,
-        damping: 15,
-        stiffness: 400,
-      }),
-      Animated.timing(opacityAnim, {
-        toValue: 0.85,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    // Remove press animations
   };
 
   const handlePressOut = () => {
     setIsPressed(false);
-    Animated.parallel([
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        useNativeDriver: true,
-        damping: 12,
-        stiffness: 300,
-      }),
-      Animated.timing(opacityAnim, {
-        toValue: 1,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    // Remove press animations
   };
 
   const containerStyle: ViewStyle = {
@@ -152,7 +130,7 @@ export const LiquidGlass: React.FC<LiquidGlassProps> = ({
           effect={effect}
           colorScheme="dark"
         >
-          <View style={styles.content}>{children}</View>
+          <View style={[styles.content, contentStyle]}>{children}</View>
         </LiquidGlassView>
       </Animated.View>
     );
@@ -173,12 +151,15 @@ export const LiquidGlass: React.FC<LiquidGlassProps> = ({
     return nativeContent;
   }
 
-  // Fallback for older iOS and Android
+  // Fallback for older iOS and Android — stable solid rendering (no BlurView)
   const content = (
     <Animated.View
       style={[
         styles.container,
-        containerStyle,
+        {
+          borderRadius: borderRadius,
+          overflow: 'hidden',
+        },
         {
           transform: [{ scale: scaleAnim }],
           opacity: opacityAnim,
@@ -186,32 +167,25 @@ export const LiquidGlass: React.FC<LiquidGlassProps> = ({
         style,
       ]}
     >
-      {/* Blur background for glass effect */}
-      {Platform.OS === 'ios' ? (
-        <BlurView
-          style={[StyleSheet.absoluteFill, { borderRadius }]}
-          blurType="ultraThinMaterialDark"
-          blurAmount={32}
-          reducedTransparencyFallbackColor="rgba(30,30,30,0.75)"
-        />
-      ) : (
-        <View
-          style={[
-            StyleSheet.absoluteFill,
-            {
-              backgroundColor: 'rgba(30,30,30,0.65)',
-              borderRadius,
-            }
-          ]}
-        />
-      )}
-
-      {/* Glass tint overlay - reduced opacity for more blur visibility */}
+      {/* Solid dark glass background — reliable in all contexts including Modals */}
       <View
         style={[
           StyleSheet.absoluteFill,
           {
-            backgroundColor: 'rgba(255,255,255,0.05)',
+            backgroundColor: 'rgba(28, 28, 30, 0.95)',
+            borderRadius,
+          }
+        ]}
+      />
+
+      {/* Top highlight for glass depth */}
+      <View
+        style={[
+          StyleSheet.absoluteFill,
+          {
+            backgroundColor: 'transparent',
+            borderTopWidth: 0.5,
+            borderTopColor: 'rgba(255,255,255,0.15)',
             borderRadius,
           }
         ]}
@@ -224,13 +198,13 @@ export const LiquidGlass: React.FC<LiquidGlassProps> = ({
           {
             borderRadius,
             borderWidth: 0.5,
-            borderColor: 'rgba(255,255,255,0.2)',
+            borderColor: 'rgba(255,255,255,0.12)',
           },
         ]}
       />
 
       {/* Content */}
-      <View style={styles.content}>{children}</View>
+      <View style={[styles.content, contentStyle]}>{children}</View>
     </Animated.View>
   );
 
@@ -311,6 +285,7 @@ export const LiquidGlassCard: React.FC<LiquidGlassCardProps> = ({
         },
         props.style,
       ]}
+      contentStyle={{ alignItems: 'stretch' }}
     >
       {children}
     </LiquidGlass>
@@ -341,35 +316,11 @@ export const LiquidGlassMenuItem: React.FC<LiquidGlassMenuItemProps> = ({
   const bgOpacity = useRef(new Animated.Value(0)).current;
 
   const handlePressIn = () => {
-    Animated.parallel([
-      Animated.spring(scaleAnim, {
-        toValue: 0.98,
-        useNativeDriver: true,
-        damping: 20,
-        stiffness: 400,
-      }),
-      Animated.timing(bgOpacity, {
-        toValue: 1,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    // Remove press animations
   };
 
   const handlePressOut = () => {
-    Animated.parallel([
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        useNativeDriver: true,
-        damping: 15,
-        stiffness: 300,
-      }),
-      Animated.timing(bgOpacity, {
-        toValue: 0,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    // Remove press animations
   };
 
   return (
@@ -475,7 +426,7 @@ export const LiquidGlassCardWrapper = ({
 const styles = StyleSheet.create({
   container: {
     overflow: 'hidden',
-    backgroundColor: 'rgba(40, 40, 40, 0.85)', // Fallback background
+    backgroundColor: 'rgba(20, 20, 20, 0.85)', // Denser fallback for visibility in modals
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -503,8 +454,11 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
   },
   content: {
+    flex: 1,
     position: 'relative',
     zIndex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   menuItem: {
     flexDirection: 'row',

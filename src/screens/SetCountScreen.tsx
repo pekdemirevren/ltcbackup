@@ -183,10 +183,7 @@ export default function SetCountScreen({ navigation }: SetCountScreenProps) {
         <View style={styles.workoutInfo}>
           <Text style={styles.workoutTitle}>{item.workoutName || 'Workout'}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-            <Text style={[styles.workoutValue, { color: MetricColors.sets }]}>{item.completedSets || 0}</Text>
-            <Text style={[styles.workoutUnit, { color: MetricColors.sets }]}>SETS</Text>
-            <Text style={[styles.workoutUnit, { marginLeft: 4, marginRight: 4, color: MetricColors.sets }]}>/</Text>
-            <Text style={[styles.workoutValue, { color: MetricColors.sets }]}>{item.completedReps || 0}</Text>
+            <Text style={[styles.workoutValue, { color: MetricColors.sets }]}>{item.completedSets || 0}x{item.completedReps || 0}</Text>
             <Text style={[styles.workoutUnit, { color: MetricColors.sets }]}>REPS</Text>
           </View>
         </View>

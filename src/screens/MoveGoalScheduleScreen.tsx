@@ -1,26 +1,48 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState, useEffect, useContext, useRef, useMemo } from 'react';
+import { View, Text, TouchableOpacity, Animated, Easing, StatusBar } from 'react-native';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import Feather from 'react-native-vector-icons/Feather';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StackScreenProps } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/RootNavigator';
-import Feather from 'react-native-vector-icons/Feather';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { Picker } from '@react-native-picker/picker';
+import LinearGradient from 'react-native-linear-gradient';
+import { LiquidGlassButton } from '../components/LiquidGlass';
+import { ThemeContext } from '../contexts/ThemeContext';
+import { getStyles } from '../styles/MoveGoalScheduleScreen.styles';
+import { MetricColors } from '../constants/MetricColors';
 
 type Props = StackScreenProps<RootStackParamList, 'MoveGoalSchedule'>;
 
 export default function MoveGoalScheduleScreen({ navigation }: Props) {
+  const { colors, Icons } = useContext(ThemeContext)!;
   const [schedule, setSchedule] = useState([
-    { day: 'Monday', goal: 500 },
-    { day: 'Tuesday', goal: 500 },
-    { day: 'Wednesday', goal: 500 },
-    { day: 'Thursday', goal: 500 },
-    { day: 'Friday', goal: 500 },
-    { day: 'Saturday', goal: 500 },
-    { day: 'Sunday', goal: 500 },
+    { day: 'Monday', weight: 100, reps: 5 },
+    { day: 'Tuesday', weight: 100, reps: 5 },
+    { day: 'Wednesday', weight: 100, reps: 5 },
+    { day: 'Thursday', weight: 100, reps: 5 },
+    { day: 'Friday', weight: 100, reps: 5 },
+    { day: 'Saturday', weight: 100, reps: 5 },
+    { day: 'Sunday', weight: 100, reps: 5 },
   ]);
-  const intervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
-  const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+  const pickerHeight = useRef(new Animated.Value(0)).current;
+  const scrollY = useRef(new Animated.Value(0)).current;
+
+  const stickyHeaderOpacity = scrollY.interpolate({
+    inputRange: [40, 70],
+    outputRange: [0, 1],
+    extrapolate: 'clamp'
+  });
+
+  const stickyTitleTranslateY = scrollY.interpolate({
+    inputRange: [40, 70],
+    outputRange: [10, 0],
+    extrapolate: 'clamp'
+  });
+
+  const styles = useMemo(() => getStyles(colors, expandedIndex !== null), [colors, expandedIndex]);
 
   useEffect(() => {
     loadSchedule();
@@ -46,48 +68,86 @@ export default function MoveGoalScheduleScreen({ navigation }: Props) {
     }
   };
 
-  const adjustGoal = (index: number, amount: number) => {
+  const adjustWeight = (index: number, amount: number) => {
     setSchedule(prevSchedule => {
       const newSchedule = [...prevSchedule];
-      newSchedule[index].goal = Math.max(10, newSchedule[index].goal + amount);
+      newSchedule[index].weight = Math.max(5, (newSchedule[index].weight || 100) + amount);
       return newSchedule;
     });
   };
 
-  const startAdjusting = (index: number, amount: number) => {
-    adjustGoal(index, amount);
-    timeoutRef.current = setTimeout(() => {
-      intervalRef.current = setInterval(() => {
-        adjustGoal(index, amount);
-      }, 200);
-    }, 500);
+  const adjustReps = (index: number, amount: number) => {
+    setSchedule(prevSchedule => {
+      const newSchedule = [...prevSchedule];
+      newSchedule[index].reps = Math.max(1, (newSchedule[index].reps || 5) + amount);
+      return newSchedule;
+    });
   };
 
-  const stopAdjusting = () => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+  const togglePicker = (index: number) => {
+    if (expandedIndex === index) {
+      // Close current
+      Animated.timing(pickerHeight, {
+        toValue: 0,
+        duration: 200,
+        easing: Easing.ease,
+        useNativeDriver: false,
+      }).start(() => setExpandedIndex(null));
+    } else {
+      // If another is open, close it first then open new one
+      if (expandedIndex !== null) {
+        Animated.timing(pickerHeight, {
+          toValue: 0,
+          duration: 150,
+          easing: Easing.ease,
+          useNativeDriver: false,
+        }).start(() => {
+          setExpandedIndex(index);
+          Animated.timing(pickerHeight, {
+            toValue: 200,
+            duration: 200,
+            easing: Easing.ease,
+            useNativeDriver: false,
+          }).start();
+        });
+      } else {
+        setExpandedIndex(index);
+        Animated.timing(pickerHeight, {
+          toValue: 200,
+          duration: 200,
+          easing: Easing.ease,
+          useNativeDriver: false,
+        }).start();
+      }
     }
   };
 
   const renderBarChart = () => {
-    const maxGoal = Math.max(...schedule.map(s => s.goal), 100);
+    const calculated1RMs = schedule.map(s => Math.round((s.weight || 0) * (1 + (s.reps || 0) / 30)));
+    const max1RM = Math.max(...calculated1RMs, 1000);
+
     return (
-      <View style={styles.chartContainer}>
-        <View style={styles.barsRow}>
-          {schedule.map((item, index) => (
-            <View key={index} style={styles.barWrapper}>
-              <View style={[styles.bar, { height: (item.goal / maxGoal) * 60 }]} />
-              <Text style={styles.barLabel}>{item.day.substring(0, 3)}</Text>
-            </View>
-          ))}
+      <View style={styles.chartWrapper}>
+        <View style={styles.chartArea}>
+          <View style={[styles.guideLine, { top: 0 }]} />
+          <View style={[styles.guideLine, { top: '50%' }]} />
+          <View style={[styles.gridLine, { bottom: 0, height: 1.5, backgroundColor: 'rgba(255,255,255,0.2)' }]} />
+
+          <View style={styles.chartBars}>
+            {schedule.map((item, index) => {
+              const oneRM = (item.weight || 0) * (1 + (item.reps || 0) / 30);
+              return (
+                <View key={index} style={styles.barContainer}>
+                  <View style={[styles.bar, { height: (oneRM / max1RM) * 100 }]} />
+                  <Text style={styles.barLabel}>{item.day.substring(0, 1)}</Text>
+                </View>
+              );
+            })}
+          </View>
         </View>
         <View style={styles.chartAxis}>
-          <Text style={styles.axisLabel}>{maxGoal}</Text>
+          <Text style={styles.axisLabel}>1000</Text>
+          <Text style={styles.axisLabel}>500</Text>
           <Text style={styles.axisLabel}>0</Text>
         </View>
       </View>
@@ -95,203 +155,150 @@ export default function MoveGoalScheduleScreen({ navigation }: Props) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeButton}>
-          <Feather name="x" size={24} color="#FFF" />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.calendarButton}
-          onPress={() => navigation.navigate('DailyMoveGoal')}
-        >
-          <MaterialCommunityIcons name="calendar-month" size={24} color="#FFF" />
-        </TouchableOpacity>
-      </View>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" />
+      <View style={{ flex: 1 }}>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>Move Goal Schedule</Text>
-        <Text style={styles.description}>
-          Set a goal based on how active you are, or how active you'd like to be, each day.
-        </Text>
+        {/* Header Buttons - Absolute Top */}
+        <View style={styles.absoluteHeaderRow}>
+          {/* Sticky Background */}
+          <Animated.View style={[styles.stickyHeaderBackground, { opacity: stickyHeaderOpacity }]} pointerEvents="none">
+            <LinearGradient
+              colors={[colors.cardBackground, 'transparent']}
+              locations={[0.6, 1]}
+              style={{ flex: 1 }}
+            />
+          </Animated.View>
 
-        {renderBarChart()}
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.headerIconButton}
+          >
+            <Feather name="x" size={28} color={colors.text} />
+          </TouchableOpacity>
 
-        <View style={styles.listContainer}>
-          {schedule.map((item, index) => (
-            <View key={index} style={styles.listItem}>
-              <Text style={styles.dayText}>{item.day}</Text>
-              <View style={styles.controls}>
-                <TouchableOpacity
-                  style={styles.smallControlButton}
-                  onPressIn={() => startAdjusting(index, -10)}
-                  onPressOut={stopAdjusting}
-                >
-                  <MaterialCommunityIcons name="minus" size={20} color="#000" />
-                </TouchableOpacity>
+          <Animated.View style={{ opacity: stickyHeaderOpacity, transform: [{ translateY: stickyTitleTranslateY }] }}>
+            <Text style={styles.stickyHeaderTitle}>1RM Goal Schedule</Text>
+          </Animated.View>
 
-                <Text style={styles.goalText}>{item.goal}<Text style={styles.unitText}>KCAL</Text></Text>
-
-                <TouchableOpacity
-                  style={styles.smallControlButton}
-                  onPressIn={() => startAdjusting(index, 10)}
-                  onPressOut={stopAdjusting}
-                >
-                  <MaterialCommunityIcons name="plus" size={20} color="#000" />
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))}
+          <View style={styles.headerIcons}>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('AdjustMoveGoal')}
+              style={styles.iconButton}
+            >
+              <Feather name="calendar" size={24} color={colors.text} />
+            </TouchableOpacity>
+          </View>
         </View>
-      </ScrollView>
 
-      <View style={styles.footer}>
-        <TouchableOpacity style={styles.actionButton} onPress={saveSchedule}>
-          <Text style={styles.actionButtonText}>Change Move Goal Schedule</Text>
-        </TouchableOpacity>
+        <Animated.ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+            { useNativeDriver: false }
+          )}
+        >
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>1RM Goal Schedule</Text>
+          </View>
+
+          <View style={{ paddingHorizontal: 13, marginBottom: 20 }}>
+            <Text style={styles.description}>
+              Set a goal based on how strong you are, or how strong you'd like to be, each day.
+            </Text>
+          </View>
+
+          {renderBarChart()}
+
+          <View style={styles.listContainer}>
+            {schedule.map((item, index) => (
+              <View key={index} style={{ marginBottom: expandedIndex === index ? 0 : 10 }}>
+                <TouchableOpacity
+                  style={[
+                    styles.card,
+                    {
+                      borderBottomLeftRadius: expandedIndex === index ? 0 : 32,
+                      borderBottomRightRadius: expandedIndex === index ? 0 : 32,
+                      marginBottom: 0,
+                    }
+                  ]}
+                  onPress={() => togglePicker(index)}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.cardTextContainer}>
+                    <Text style={styles.dayText}>{item.day}</Text>
+                    <Text style={styles.calculatedText}>1RM: {Math.round((item.weight || 0) * (1 + (item.reps || 0) / 30))} KG</Text>
+                  </View>
+                  <View style={styles.valueContainer}>
+                    <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+                      <Text style={[styles.valueText, { color: expandedIndex === index ? MetricColors.weight : '#FFF' }]}>{item.weight}</Text>
+                      <Text style={[styles.valueUnit, { color: expandedIndex === index ? MetricColors.weight : '#FFF', marginLeft: 1, marginRight: 6 }]}>KG</Text>
+                      <Text style={[styles.valueText, { color: expandedIndex === index ? MetricColors.reps : '#FFF' }]}>{item.reps}</Text>
+                      <Text style={[styles.valueUnit, { color: expandedIndex === index ? MetricColors.reps : '#FFF', marginLeft: 1 }]}>REPS</Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+
+                {expandedIndex === index && (
+                  <Animated.View style={[styles.expandedPickersRow, { height: pickerHeight }]}>
+                    <View style={styles.pickerCol}>
+                      <Text style={styles.pickerColLabel}>Weight</Text>
+                      <View style={styles.recessedPickerWrapper}>
+                        <Picker
+                          selectedValue={item.weight}
+                          onValueChange={(val) => adjustWeight(index, val - (item.weight || 100))}
+                          style={styles.pickerControl}
+                          itemStyle={styles.pickerItem}
+                        >
+                          {Array.from({ length: 100 }, (_, i) => (i + 1) * 5).map(v => (
+                            <Picker.Item key={v} label={`${v}`} value={v} color={colors.text} />
+                          ))}
+                        </Picker>
+                      </View>
+                    </View>
+                    <View style={styles.pickerCol}>
+                      <Text style={styles.pickerColLabel}>Reps</Text>
+                      <View style={styles.recessedPickerWrapper}>
+                        <Picker
+                          selectedValue={item.reps}
+                          onValueChange={(val) => adjustReps(index, val - (item.reps || 5))}
+                          style={styles.pickerControl}
+                          itemStyle={styles.pickerItem}
+                        >
+                          {Array.from({ length: 30 }, (_, i) => i + 1).map(v => (
+                            <Picker.Item key={v} label={`${v}`} value={v} color={colors.text} />
+                          ))}
+                        </Picker>
+                        <LinearGradient
+                          colors={['rgba(255,255,255,0.06)', 'transparent']}
+                          style={[styles.pickerGradient, { top: 0 }]}
+                          pointerEvents="none"
+                        />
+                        <LinearGradient
+                          colors={['transparent', 'rgba(255,255,255,0.06)']}
+                          style={[styles.pickerGradient, { bottom: 0 }]}
+                          pointerEvents="none"
+                        />
+                      </View>
+                    </View>
+                  </Animated.View>
+                )}
+              </View>
+            ))}
+          </View>
+        </Animated.ScrollView>
+
+        <View style={styles.footer}>
+          <LiquidGlassButton
+            onPress={saveSchedule}
+            style={styles.actionButton}
+          >
+            <Text style={styles.actionButtonText}>Change 1RM Goal Schedule</Text>
+          </LiquidGlassButton>
+        </View>
       </View>
-    </SafeAreaView>
+    </View >
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#1C1C1E',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    marginBottom: 10,
-  },
-  closeButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#2C2C2E',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  calendarButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#2C2C2E',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  scrollContent: {
-    paddingHorizontal: 24,
-    paddingBottom: 100,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#FFF',
-    marginBottom: 8,
-  },
-  description: {
-    fontSize: 16,
-    color: '#8E8E93',
-    marginBottom: 30,
-    lineHeight: 22,
-  },
-  chartContainer: {
-    flexDirection: 'row',
-    height: 100,
-    marginBottom: 30,
-    alignItems: 'flex-end',
-  },
-  barsRow: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    paddingRight: 10,
-  },
-  barWrapper: {
-    alignItems: 'center',
-  },
-  bar: {
-    width: 4,
-    backgroundColor: '#FA114F',
-    borderRadius: 2,
-    marginBottom: 8,
-  },
-  barLabel: {
-    color: '#8E8E93',
-    fontSize: 10,
-  },
-  chartAxis: {
-    justifyContent: 'space-between',
-    height: '100%',
-    paddingBottom: 20,
-  },
-  axisLabel: {
-    color: '#8E8E93',
-    fontSize: 10,
-  },
-  listContainer: {
-    gap: 12,
-  },
-  listItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#2C2C2E',
-    padding: 16,
-    borderRadius: 16,
-  },
-  dayText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  controls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  smallControlButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#FA114F',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  goalText: {
-    color: '#FFF',
-    fontSize: 20,
-    fontWeight: '600',
-    width: 90,
-    textAlign: 'center',
-  },
-  unitText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#8E8E93',
-  },
-  footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 24,
-    backgroundColor: '#1C1C1E', // Ensure background covers scroll content
-  },
-  actionButton: {
-    backgroundColor: '#2C2C2E',
-    paddingVertical: 16,
-    borderRadius: 30,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#3A3A3C',
-  },
-  actionButtonText: {
-    color: '#CCFF00',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-});

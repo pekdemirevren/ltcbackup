@@ -52,13 +52,13 @@ export function RedLapSettingsScreen({ route, navigation }: RedLapSettingsScreen
     const loadSettings = async () => {
       try {
         if (blockId && workoutId) {
-             const { loadWorkoutSettings } = await import('../utils/WorkoutSettingsManager');
-             const loadedSettings = await loadWorkoutSettings(workoutId);
-             const block = loadedSettings.customBlocks?.find((b: any) => b.id === blockId);
-             if (block && block.settings.redReps) {
-                 setRedLaps(String(block.settings.redReps));
-             }
-             return;
+          const { loadWorkoutSettings } = await import('../utils/WorkoutSettingsManager');
+          const loadedSettings = await loadWorkoutSettings(workoutId);
+          const block = loadedSettings.customBlocks?.find((b: any) => b.id === blockId);
+          if (block && block.settings.redReps) {
+            setRedLaps(String(block.settings.redReps));
+          }
+          return;
         }
         if (workoutId && workoutId !== 'default') {
           const { loadWorkoutSettings } = await import('../utils/WorkoutSettingsManager');
@@ -85,7 +85,8 @@ export function RedLapSettingsScreen({ route, navigation }: RedLapSettingsScreen
           const currentSettings = await loadWorkoutSettings(workoutId);
           await saveWorkoutSettings({
             ...currentSettings,
-            redReps: redLaps
+            redReps: redLaps,
+            targetReps: redLaps
           });
         } else {
           await AsyncStorage.setItem('redLaps', redLaps);
@@ -122,7 +123,8 @@ export function RedLapSettingsScreen({ route, navigation }: RedLapSettingsScreen
         const currentSettings = await loadWorkoutSettings(workoutId);
         await saveWorkoutSettings({
           ...currentSettings,
-          redReps: redLaps
+          redReps: redLaps,
+          targetReps: redLaps
         });
       } else {
         await AsyncStorage.setItem('redLaps', redLaps);
@@ -151,46 +153,49 @@ export function RedLapSettingsScreen({ route, navigation }: RedLapSettingsScreen
         <View style={{ position: 'absolute', top: 50, right: 24, zIndex: 10 }}>
           <TouchableOpacity
             onPress={async () => {
-                if (workoutId) {
-                    const { loadWorkoutSettings, saveWorkoutSettings } = await import('../utils/WorkoutSettingsManager');
-                    const current = await loadWorkoutSettings(workoutId);
-                    
-                    if (blockId) {
-                        // Update existing block and move to top
-                        const otherBlocks = current.customBlocks?.filter((b: any) => b.id !== blockId) || [];
-                        const existingBlock = current.customBlocks?.find((b: any) => b.id === blockId);
-                        
-                        if (existingBlock) {
-                            const updatedBlock = {
-                                ...existingBlock,
-                                settings: {
-                                    ...existingBlock.settings,
-                                    redReps: parseInt(redLaps, 10)
-                                }
-                            };
-                            
-                            await saveWorkoutSettings({
-                                ...current,
-                                customBlocks: [updatedBlock, ...otherBlocks]
-                            });
-                        }
-                    } else {
-                        // Create new block
-                        const newBlock = {
-                            id: Date.now().toString() + Math.random().toString(),
-                            type: 'lap' as const,
-                            settings: {
-                                greenReps: 3,
-                                redReps: parseInt(redLaps, 10)
-                            }
-                        };
-                        await saveWorkoutSettings({
-                            ...current,
-                            customBlocks: [newBlock, ...(current.customBlocks || [])]
-                        });
+              if (workoutId) {
+                const { loadWorkoutSettings, saveWorkoutSettings } = await import('../utils/WorkoutSettingsManager');
+                const current = await loadWorkoutSettings(workoutId);
+
+                if (blockId) {
+                  // Update existing block and move to top
+                  const otherBlocks = current.customBlocks?.filter((b: any) => b.id !== blockId) || [];
+                  const existingBlock = current.customBlocks?.find((b: any) => b.id === blockId);
+
+                  if (existingBlock) {
+                    const updatedBlock = {
+                      ...existingBlock,
+                      settings: {
+                        ...existingBlock.settings,
+                        redReps: parseInt(redLaps, 10),
+                        targetReps: redLaps
+                      }
+                    };
+
+                    await saveWorkoutSettings({
+                      ...current,
+                      customBlocks: [updatedBlock, ...otherBlocks]
+                    });
+                  }
+                } else {
+                  // Create new block
+                  const newBlock = {
+                    id: Date.now().toString() + Math.random().toString(),
+                    type: 'lap' as const,
+                    settings: {
+                      greenReps: 3,
+                      redReps: parseInt(redLaps, 10),
+                      targetSets: '3',
+                      targetReps: redLaps
                     }
-                    navigation.pop(2);
+                  };
+                  await saveWorkoutSettings({
+                    ...current,
+                    customBlocks: [newBlock, ...(current.customBlocks || [])]
+                  });
                 }
+                navigation.pop(2);
+              }
             }}
             style={{
               width: 48,
@@ -209,7 +214,8 @@ export function RedLapSettingsScreen({ route, navigation }: RedLapSettingsScreen
             <MaterialCommunityIcons name="check" size={32} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
-      )}
+      )
+      }
 
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Break Laps</Text>
@@ -273,6 +279,6 @@ export function RedLapSettingsScreen({ route, navigation }: RedLapSettingsScreen
         </TouchableOpacity>
       </ScrollView>
 
-    </View>
+    </View >
   );
 }
