@@ -20,6 +20,9 @@ import { BlurView } from '@react-native-community/blur';
 import MetricColors from '../constants/MetricColors';
 import LinearGradient from 'react-native-linear-gradient';
 import { calculateCalories } from '../utils/CalorieCalculator';
+import { getSessionCalories } from '../utils/SnapshotCalorieReader';
+import { getTotalVolume, getActiveTime, getRestTime, getCalories } from '../utils/SessionSnapshotReader';
+import { parseStoredBodyWeight, DEFAULT_BODY_WEIGHT_KG } from '../constants/bodyWeight';
 import { allWorkouts, Workout } from '../constants/workoutData';
 import { SUMMARY_CARD_STORAGE_KEY, DEFAULT_VISIBLE_CARDS } from '../constants/WorkoutConstants';
 import { SessionsSquareCardStyle } from '../styles/sessionssquarecardstyle';
@@ -29,6 +32,7 @@ import { AddCardButtonStyle } from '../styles/AddCardButtonStyle';
 import { SquareCardMeasurements } from '../styles/SquareCardBase';
 import DailyWorkoutWidget from './Summary/DailyWorkoutWidget';
 import { getTodaysWorkoutDay, getCurrentDayNumber, WorkoutDayType } from '../utils/WorkoutDayManager';
+import { WorkoutSummary } from '../types/workout';
 
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -68,7 +72,7 @@ export default function AddSummaryCardModal({ visible, onClose, onCardAdded }: A
 
     // Workout-specific stats mapping
     const [workoutStats, setWorkoutStats] = useState<{ [workoutId: string]: any }>({});
-    const [recentSessions, setRecentSessions] = useState<any[]>([]);
+    const [recentSessions, setRecentSessions] = useState<WorkoutSummary[]>([]);
     const [trendStats, setTrendStats] = useState({
         energy: 0,
         strength: 0,
@@ -82,6 +86,20 @@ export default function AddSummaryCardModal({ visible, onClose, onCardAdded }: A
     });
 
     const latestSession = recentSessions.length > 0 ? recentSessions[0] : null;
+    const [userBodyWeightKg, setUserBodyWeightKg] = useState<number>(DEFAULT_BODY_WEIGHT_KG);
+
+    useEffect(() => {
+        const loadWeight = async () => {
+            try {
+                const stored = await AsyncStorage.getItem('userBodyWeight');
+                const parsed = parseStoredBodyWeight(stored);
+                setUserBodyWeightKg(parsed);
+            } catch (e) {
+                setUserBodyWeightKg(DEFAULT_BODY_WEIGHT_KG);
+            }
+        };
+        loadWeight();
+    }, []);
 
     const panY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
     const scrollOffset = useRef(0);
@@ -230,12 +248,11 @@ export default function AddSummaryCardModal({ visible, onClose, onCardAdded }: A
 
                 wSummaries.forEach((s: any) => {
                     const sDate = new Date(s.date);
-                    const activeTime = s.greenLoopTimes ? s.greenLoopTimes.reduce((a: any, b: any) => a + b, 0) : (s.elapsedTime || 0);
-                    const restTime = s.redLoopTimes ? s.redLoopTimes.reduce((a: any, b: any) => a + b, 0) : 0;
-                    const weightVal = s.settings?.weight ? parseFloat(s.settings.weight) : 0;
+                    const activeTime = (getActiveTime(s).value) || 0;
+                    const restTime = (getRestTime(s).value) || 0;
                     const sets = (s.completedSets || 0);
                     const reps = (s.completedReps || 0);
-                    const vol = weightVal * sets * reps;
+                    const vol = (getTotalVolume(s).value) || 0;
                     const cadence = reps > 0 ? (activeTime / reps) : 0;
                     const density = (s.elapsedTime || 0) > 0 ? (activeTime / s.elapsedTime) * 100 : 0;
 
@@ -267,7 +284,15 @@ export default function AddSummaryCardModal({ visible, onClose, onCardAdded }: A
                         gTotalSets += sets;
                         gTotalVolume += vol;
 
-                        const cals = calculateCalories(s.workoutId, s.elapsedTime, weightVal, s.completedReps || 0);
+                        // Phase 5B: Prefer snapshot calories, fallback to live calculation for legacy sessions
+                        const recordedWeight = typeof (s as any).liftedWeightKg === 'number' ? (s as any).liftedWeightKg : undefined;
+                        const cals = getSessionCalories(s.calories, {
+                            workoutId: s.workoutId,
+                            durationSeconds: s.elapsedTime,
+                            bodyWeightKg: userBodyWeightKg,
+                            liftedWeightKg: recordedWeight,
+                            reps: s.completedReps || 0,
+                        });
                         gTotalEnergy += cals;
                         gTotalEndurance += (s.elapsedTime || 0);
 
@@ -340,14 +365,20 @@ export default function AddSummaryCardModal({ visible, onClose, onCardAdded }: A
             const recentDataTrend = allSummaries.filter((s: any) => new Date(s.date) >= sevenDaysAgoTrend);
 
             const groupedByDayTrend: { [key: string]: any } = {};
-            recentDataTrend.forEach((item: any) => {
+                recentDataTrend.forEach((item: any) => {
                 const dayKey = new Date(item.date).toDateString();
                 if (!groupedByDayTrend[dayKey]) {
                     groupedByDayTrend[dayKey] = { kcal: 0, volume: 0, sets: 0, duration: 0 };
                 }
-                const weightVal = item.settings?.weight ? parseFloat(item.settings.weight) : 0;
-                const kcal = calculateCalories(item.workoutId, item.elapsedTime, weightVal, item.completedReps);
-                const volume = item.totalVolume || (weightVal * (item.completedSets || 0) * (item.completedReps || 0));
+                    const recordedWeight = typeof (item as any).liftedWeightKg === 'number' ? (item as any).liftedWeightKg : undefined;
+                    const kcal = getSessionCalories(item.calories, {
+                        workoutId: item.workoutId,
+                        durationSeconds: item.elapsedTime,
+                        bodyWeightKg: userBodyWeightKg,
+                        liftedWeightKg: recordedWeight,
+                        reps: item.completedReps,
+                    });
+                    const volume = (item.totalVolume) || (getTotalVolume(item).value || 0);
 
                 groupedByDayTrend[dayKey].kcal += kcal;
                 groupedByDayTrend[dayKey].volume += volume;
@@ -502,7 +533,14 @@ export default function AddSummaryCardModal({ visible, onClose, onCardAdded }: A
                                                     const isToday = sessionDate.toDateString() === new Date().toDateString();
                                                     const dateLabel = isToday ? 'Today' : sessionDate.toLocaleDateString('en-US', { weekday: 'long' });
                                                     const weightVal = session.settings?.weight ? parseFloat(session.settings.weight) : 0;
-                                                    const cals = calculateCalories(session.workoutId, session.elapsedTime, weightVal, session.completedReps);
+                                                    // Phase 5B: Prefer snapshot calories, fallback to live calculation for legacy sessions
+                                                    const cals = getSessionCalories(session.calories, {
+                                                        workoutId: session.workoutId,
+                                                        durationSeconds: session.elapsedTime,
+                                                        bodyWeightKg: userBodyWeightKg,
+                                                        liftedWeightKg: weightVal,
+                                                        reps: session.completedReps,
+                                                    });
 
                                                     return (
                                                         <View style={[SessionsSquareCardStyle.sessionSquareCard, { marginTop: SquareCardMeasurements.modal.carouselCardTop, paddingTop: SquareCardMeasurements.modal.carouselCardPaddingTop }]}>
@@ -541,7 +579,14 @@ export default function AddSummaryCardModal({ visible, onClose, onCardAdded }: A
                                                             const workout = allWorkouts.find(w => w.workoutId === session.workoutId);
                                                             const SvgIcon = workout?.SvgIcon;
                                                             const weightVal = session.settings?.weight ? parseFloat(session.settings.weight) : 0;
-                                                            const cals = calculateCalories(session.workoutId, session.elapsedTime, weightVal, session.completedReps);
+                                                            // Phase 5B: Prefer snapshot calories, fallback to live calculation for legacy sessions
+                                                            const cals = getSessionCalories(session.calories, {
+                                                                workoutId: session.workoutId,
+                                                                durationSeconds: session.elapsedTime,
+                                                                bodyWeightKg: userBodyWeightKg,
+                                                                liftedWeightKg: weightVal,
+                                                                reps: session.completedReps,
+                                                            });
 
                                                             const isToday = sessionDate.toDateString() === new Date().toDateString();
                                                             const dateLabel = isToday ? 'Today' : sessionDate.toLocaleDateString('en-US', { weekday: 'long' });
@@ -884,7 +929,14 @@ export default function AddSummaryCardModal({ visible, onClose, onCardAdded }: A
                                     const workout = allWorkouts.find(w => w.workoutId === session.workoutId);
                                     const SvgIcon = workout?.SvgIcon;
                                     const weightVal = session.settings?.weight ? parseFloat(session.settings.weight) : 0;
-                                    const cals = calculateCalories(session.workoutId, session.elapsedTime, weightVal, session.completedReps);
+                                    // Phase 5B: Prefer snapshot calories, fallback to live calculation for legacy sessions
+                                    const cals = getSessionCalories(session.calories, {
+                                        workoutId: session.workoutId,
+                                        durationSeconds: session.elapsedTime,
+                                        bodyWeightKg: userBodyWeightKg,
+                                        liftedWeightKg: weightVal,
+                                        reps: session.completedReps,
+                                    });
 
                                     const isToday = sessionDate.toDateString() === new Date().toDateString();
                                     const dateLabel = isToday ? 'Today' : sessionDate.toLocaleDateString('en-US', { weekday: 'long' });

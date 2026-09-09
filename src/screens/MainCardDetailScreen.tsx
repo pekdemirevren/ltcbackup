@@ -67,14 +67,16 @@ export default function MainCardDetailScreen({ route, navigation }: any) {
         const workoutData = allWorkouts.find(w => w.workoutId === nextWorkoutId || w.id === nextWorkoutId);
 
         if (timerContext && workoutData) {
-            timerContext.startTimerWithWorkoutSettings(workoutData.workoutId, workoutData.name);
-            // Pass mainCardId and attemptId to the timer
-            navigation.navigate('Timer', {
-                workoutId: workoutData.workoutId,
-                workoutName: workoutData.name,
-                mainCardId: card.id,
-                attemptId: currentAttempt.id
-            });
+            // Pass mainCardId and attemptId so the Timer and save flow can record the attempt
+            timerContext.startTimerWithWorkoutSettings(
+                workoutData.workoutId,
+                workoutData.name,
+                undefined,
+                undefined,
+                undefined,
+                card.id,
+                currentAttempt.id,
+            );
         }
     };
 

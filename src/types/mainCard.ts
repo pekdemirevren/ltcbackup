@@ -20,6 +20,7 @@ export type RunContext = {
     runIndex: number;              // 1..requiredRuns
     completedWorkoutCount: number; // 0..workoutIds.length
     dayKey: string;                // streak/consistency (e.g., '2024-02-02')
+    attemptId?: string;            // persisted attempt identity used for main-card idempotency
 };
 
 export type MainCard = {
@@ -58,4 +59,5 @@ export interface MainCardState {
     shards: Record<string, number>; // Shards for secondary unlocks
     unlockedSecondaries: string[]; // List of unlocked icon names
     currentAttemptId: string | null; // Currently active run attempt
+    processedAttemptIds?: string[]; // prevent duplicate processing of the same completed attempt/run
 }

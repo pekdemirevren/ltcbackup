@@ -1,6 +1,7 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
-import SummaryScreen from '../../screens/SummaryScreen';
+// Temporary: use SummaryScreen2 while repairing the original SummaryScreen
+import SummaryScreen from '../../screens/SummaryScreen2';
 import DailySummaryDetailScreen from '../../screens/DailySummaryDetailScreen';
 import CadenceScreen from '../../screens/CadenceScreen';
 import IntensityScreen from '../../screens/IntensityScreen';

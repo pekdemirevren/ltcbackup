@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useContext } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, StatusBar, LayoutAnimation, Platform, UIManager, Animated } from 'react-native';
 import { LiquidGlass } from '../components/LiquidGlass';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ThemeContext } from '../contexts/ThemeContext';
 import Theme from '../constants/theme';
 import Feather from 'react-native-vector-icons/Feather';
@@ -9,6 +8,11 @@ import { allWorkouts } from '../constants/workoutData';
 import LinearGradient from 'react-native-linear-gradient';
 import { AnimatedCircularProgress } from 'react-native-circular-progress';
 import { calculateCalories } from '../utils/CalorieCalculator';
+import { getSessionCalories } from '../utils/SnapshotCalorieReader';
+import { getTotalVolume, getCalories, getActiveTime, getRestTime } from '../utils/SessionSnapshotReader';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { parseStoredBodyWeight, DEFAULT_BODY_WEIGHT_KG } from '../constants/bodyWeight';
+import { WorkoutSummary } from '../types/workout';
 import Svg, { Path, Polygon, G, Defs, LinearGradient as SvgGradient, Stop as SvgStop } from 'react-native-svg';
 
 const GeometricPattern = ({ color, seed }: { color: string, seed: string }) => {
@@ -49,27 +53,9 @@ if (Platform.OS === 'android') {
     }
 }
 
-interface WorkoutSummary {
-    date: string;
-    workoutId: string;
-    workoutName: string;
-    elapsedTime: number;
-    completedSets: number;
-    completedReps: number;
-    avgGreenLoopTime: number;
-    avgRedLoopTime: number;
-    greenLoopTimes?: number[];
-    redLoopTimes?: number[];
-    settings?: {
-        greenReps: string;
-        redReps: string;
-        greenTime: string;
-        restTime: string;
-        weight?: string;
-    };
-}
+// Using shared WorkoutSummary type from src/types/workout.ts
 
-const SummaryCard = ({ item, workoutIcon: WorkoutIcon }: { item: WorkoutSummary, workoutIcon: any }) => {
+const SummaryCard = ({ item, workoutIcon: WorkoutIcon, previousSession }: { item: WorkoutSummary, workoutIcon: any, previousSession?: WorkoutSummary }) => {
     const [detailsOpen, setDetailsOpen] = useState(true);
     const [segmentsOpen, setSegmentsOpen] = useState(false);
 
@@ -105,7 +91,10 @@ const SummaryCard = ({ item, workoutIcon: WorkoutIcon }: { item: WorkoutSummary,
     };
 
     // Calculations
-    const activeTime = item.greenLoopTimes ? item.greenLoopTimes.reduce((a, b) => a + b, 0) : 0;
+    const activeTimeResult = getActiveTime(item);
+    const activeTime = activeTimeResult.value ?? 0;
+    const restTimeResult = getRestTime(item);
+    const restTime = restTimeResult.value ?? 0;
     const totalSets = item.completedSets || 0;
     const totalReps = item.completedReps || 0;
     const targetSets = item.settings?.greenReps ? parseInt(item.settings.greenReps) : 0;
@@ -113,9 +102,30 @@ const SummaryCard = ({ item, workoutIcon: WorkoutIcon }: { item: WorkoutSummary,
     const avgWorkoutTime = totalSets > 0 ? item.elapsedTime / totalSets : 0;
     const progress = targetSets > 0 ? Math.min((totalSets / targetSets) * 100, 100) : 100;
 
-    // Calorie Calculation
-    const weightVal = item.settings?.weight ? parseFloat(item.settings.weight) : 0;
-    const calories = calculateCalories(item.workoutId, item.elapsedTime, weightVal, totalReps);
+    // Calorie & volume Calculation - prefer snapshot/recorded data
+    const recordedWeight = typeof (item as any).liftedWeightKg === 'number' ? (item as any).liftedWeightKg : undefined;
+    const volRes = getTotalVolume(item);
+    const totalVolumeVal = volRes && volRes.value ? volRes.value : 0;
+
+    const [bodyWeightKg, setBodyWeightKg] = useState<number>(DEFAULT_BODY_WEIGHT_KG);
+
+    useEffect(() => {
+        const fetchBodyWeight = async () => {
+            const storedBodyWeight = await AsyncStorage.getItem('userBodyWeight');
+            const parsedWeight = parseStoredBodyWeight(storedBodyWeight ?? DEFAULT_BODY_WEIGHT_KG.toString());
+            setBodyWeightKg(parsedWeight);
+        };
+
+        fetchBodyWeight();
+    }, []);
+
+    const calories = getSessionCalories(item.calories, {
+        workoutId: item.workoutId,
+        durationSeconds: item.elapsedTime,
+        bodyWeightKg,
+        liftedWeightKg: recordedWeight,
+        reps: totalReps,
+    });
 
     return (
         <View style={styles.summaryContainer}>
@@ -146,6 +156,16 @@ const SummaryCard = ({ item, workoutIcon: WorkoutIcon }: { item: WorkoutSummary,
                         <Text style={styles.workoutName}>{item.workoutName}</Text>
                         <Text style={styles.goalText}>Goal: {targetSets}x{targetReps}</Text>
                         <Text style={styles.timeRangeText}>{formatTimeRange(item.date, item.elapsedTime)}</Text>
+                        {previousSession && (
+                            <View style={styles.comparisonRow}>
+                                <Text style={styles.comparisonLabel}>
+                                    {totalVolumeVal > (getTotalVolume(previousSession).value ?? 0) ? '📈' : '📊'} vs Previous:{' '}
+                                    {totalVolumeVal > (getTotalVolume(previousSession).value ?? 0)
+                                        ? '+' + Math.round(totalVolumeVal - (getTotalVolume(previousSession).value ?? 0)) + ' kg'
+                                        : Math.round(totalVolumeVal - (getTotalVolume(previousSession).value ?? 0)) + ' kg'}
+                                </Text>
+                            </View>
+                        )}
                     </View>
                 </View>
             </View>
@@ -348,6 +368,16 @@ export const WorkoutSummaryScreen = ({ route, navigation }: any) => {
 
     const latestSummary = summaries.length > 0 ? summaries[0] : null;
 
+    const navigateToTab = (tabName: 'Workout' | 'Summary') => {
+        const parent = navigation.getParent && navigation.getParent();
+        if (parent && typeof (parent as any).jumpTo === 'function') {
+            (parent as any).jumpTo(tabName);
+            return;
+        }
+
+        navigation.navigate('Main', { screen: tabName });
+    };
+
     const handleBack = () => {
         if (navigation.canGoBack()) {
             navigation.goBack();
@@ -433,8 +463,32 @@ export const WorkoutSummaryScreen = ({ route, navigation }: any) => {
                         <Text style={[styles.emptySubText, { color: '#8E8E93' }]}>Complete a workout to see stats here.</Text>
                     </View>
                 }
-                renderItem={({ item }) => (
-                    <SummaryCard item={item} workoutIcon={WorkoutIcon} />
+                ListFooterComponent={
+                    summaries.length > 0 ? (
+                        <View style={styles.footerActionsContainer}>
+                            <TouchableOpacity
+                                style={styles.primaryFooterAction}
+                                onPress={() => navigateToTab('Workout')}
+                                activeOpacity={0.9}
+                            >
+                                <Text style={styles.primaryFooterActionText}>Next Workout</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.secondaryFooterAction}
+                                onPress={() => navigateToTab('Summary')}
+                                activeOpacity={0.9}
+                            >
+                                <Text style={styles.secondaryFooterActionText}>View Progress</Text>
+                            </TouchableOpacity>
+                        </View>
+                    ) : null
+                }
+                renderItem={({ item, index }) => (
+                    <SummaryCard 
+                        item={item} 
+                        workoutIcon={WorkoutIcon}
+                        previousSession={index > 0 ? summaries[index - 1] : undefined}
+                    />
                 )}
             />
         </View>
@@ -679,5 +733,49 @@ const styles = StyleSheet.create({
         fontSize: 34,
         fontWeight: 'bold',
         color: '#ffffffff',
-    }
-});
+    },
+    footerActionsContainer: {
+        flexDirection: 'row',
+        gap: 12,
+        paddingHorizontal: 16,
+        paddingVertical: 20,
+        paddingBottom: 40,
+    },
+    primaryFooterAction: {
+        flex: 1,
+        backgroundColor: '#9DEC2C',
+        borderRadius: 12,
+        paddingVertical: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    primaryFooterActionText: {
+        color: '#0B0B0C',
+        fontSize: 14,
+        fontWeight: '700',
+    },
+    secondaryFooterAction: {
+        flex: 1,
+        backgroundColor: '#1B1E24',
+        borderWidth: 1,
+        borderColor: '#2C2F34',
+        borderRadius: 12,
+        paddingVertical: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    secondaryFooterActionText: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: '700',
+    },    comparisonRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 6,
+    },
+    comparisonLabel: {
+        color: '#9DEC2C',
+        fontSize: 13,
+        fontWeight: '600',
+        letterSpacing: 0.3,
+    },});

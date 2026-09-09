@@ -29,6 +29,8 @@ import { launchImageLibrary, launchCamera, Asset } from 'react-native-image-pick
 import ViewShot from 'react-native-view-shot';
 import { CameraRoll } from '@react-native-camera-roll/camera-roll';
 import { calculateCalories } from '../utils/CalorieCalculator';
+import { getSessionCalories } from '../utils/SnapshotCalorieReader';
+import { parseStoredBodyWeight } from '../constants/bodyWeight';
 import { allWorkouts } from '../constants/workoutData';
 import { TimerContext } from '../contexts/TimerContext';
 import { wallpapers } from '../constants/wallpapers';
@@ -402,12 +404,16 @@ export default function SharingScreen() {
           // Calculate calories
           const weight = await AsyncStorage.getItem('userWeight');
           const weightVal = weight ? parseFloat(weight) : 70;
-          const calories = calculateCalories(
-            lastSession.workoutId,
-            lastSession.elapsedTime,
-            weightVal,
-            lastSession.completedReps || 0
-          );
+          const storedBodyWeight = await AsyncStorage.getItem('userBodyWeight');
+          const bodyWeightKg = parseStoredBodyWeight(storedBodyWeight ?? 75);
+          // Phase 5B: Prefer snapshot calories, fallback to live calculation for legacy sessions
+          const calories = getSessionCalories(lastSession.calories, {
+            workoutId: lastSession.workoutId,
+            durationSeconds: lastSession.elapsedTime,
+            bodyWeightKg,
+            liftedWeightKg: weightVal,
+            reps: lastSession.completedReps || 0,
+          });
           
           setWorkoutData({
             workoutName: workout?.name?.toUpperCase() || 'WORKOUT',

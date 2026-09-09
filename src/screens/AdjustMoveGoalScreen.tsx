@@ -11,6 +11,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import { LiquidGlassButton } from '../components/LiquidGlass';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { getStyles } from '../styles/AdjustMoveGoalScreen.styles';
+import { parseStoredBodyWeight } from '../constants/bodyWeight';
 
 type Props = StackScreenProps<RootStackParamList, 'AdjustMoveGoal'>;
 
@@ -52,7 +53,7 @@ export default function AdjustMoveGoalScreen({ navigation }: Props) {
         if (override.date === todayStr) {
           setWeight(override.weight || 100);
           setReps(override.reps || 5);
-          setBodyWeight(override.bodyWeight || 75);
+          setBodyWeight(parseStoredBodyWeight(override.bodyWeight));
           return;
         }
       }
@@ -65,7 +66,7 @@ export default function AdjustMoveGoalScreen({ navigation }: Props) {
         if (dayItem) {
           setWeight(dayItem.weight || 100);
           setReps(dayItem.reps || 5);
-          setBodyWeight(dayItem.bodyWeight || 75);
+          setBodyWeight(parseStoredBodyWeight(dayItem.bodyWeight));
         }
       }
     } catch (e) {

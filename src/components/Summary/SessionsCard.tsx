@@ -1,15 +1,18 @@
-
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { allWorkouts } from '../../constants/workoutData';
 import { calculateCalories } from '../../utils/CalorieCalculator';
+import { parseStoredBodyWeight, DEFAULT_BODY_WEIGHT_KG } from '../../constants/bodyWeight';
+import { getSessionCalories } from '../../utils/SnapshotCalorieReader';
+import { WorkoutSummary } from '../../types/workout';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import MetricColors from '../../constants/MetricColors';
 import { SessionsSquareCardStyle } from '../../styles/sessionssquarecardstyle';
 
 interface SessionsCardProps {
   type: 'List' | 'Square';
-  recentSessions: any[];
+  recentSessions: WorkoutSummary[];
   onPress: () => void;
   onItemPress: (session: any) => void;
   isEditing?: boolean;
@@ -32,7 +35,15 @@ export const SessionsCard: React.FC<SessionsCardProps> = ({
     const isToday = sessionDate.toDateString() === new Date().toDateString();
     const dateLabel = isToday ? 'Today' : sessionDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
     const weightVal = session.settings?.weight ? parseFloat(session.settings.weight) : 0;
-    const cals = session.calories || calculateCalories(session.workoutId, session.elapsedTime, weightVal, session.completedReps);
+    const storedBodyWeight = parseStoredBodyWeight(session.bodyWeightKg ?? session.settings?.bodyWeight ?? DEFAULT_BODY_WEIGHT_KG);
+    // Phase 5B: Prefer snapshot calories, fallback to live calculation for legacy sessions
+    const cals = getSessionCalories(session.calories, {
+      workoutId: session.workoutId,
+      durationSeconds: session.elapsedTime,
+      bodyWeightKg: storedBodyWeight,
+      liftedWeightKg: weightVal,
+      reps: session.completedReps,
+    });
 
     return (
       <TouchableOpacity
@@ -75,7 +86,15 @@ export const SessionsCard: React.FC<SessionsCardProps> = ({
           const workout = allWorkouts.find(w => w.workoutId === session.workoutId);
           const SvgIcon = workout?.SvgIcon;
           const weightVal = session.settings?.weight ? parseFloat(session.settings.weight) : 0;
-          const cals = calculateCalories(session.workoutId, session.elapsedTime, weightVal, session.completedReps);
+          const storedBodyWeight = parseStoredBodyWeight(session.bodyWeightKg ?? session.settings?.bodyWeight ?? DEFAULT_BODY_WEIGHT_KG);
+          // Phase 5B: Prefer snapshot calories, fallback to live calculation for legacy sessions
+          const cals = getSessionCalories(session.calories, {
+            workoutId: session.workoutId,
+            durationSeconds: session.elapsedTime,
+            bodyWeightKg: storedBodyWeight,
+            liftedWeightKg: weightVal,
+            reps: session.completedReps,
+          });
           const isToday = sessionDate.toDateString() === new Date().toDateString();
           const dateLabel = isToday ? 'Today' : sessionDate.toLocaleDateString('en-US', { weekday: 'long' });
           const oneWeekAgo = new Date();

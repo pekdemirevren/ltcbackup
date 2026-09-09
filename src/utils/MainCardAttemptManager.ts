@@ -54,22 +54,23 @@ export async function recordWorkoutInAttempt(
     const attempt = await getCurrentAttempt(cardId);
     if (!attempt || attempt.isCompleted) return { attempt: attempt!, runProcessed: false };
 
+    // Determine if this is the first time we're recording this workout for the attempt
+    const isNewCompletion = !attempt.completedWorkouts.includes(workoutId);
+
     // Add to completed if not already there
-    if (!attempt.completedWorkouts.includes(workoutId)) {
+    if (isNewCompletion) {
         attempt.completedWorkouts.push(workoutId);
     }
 
-    // Save partial session data for this workout? 
-    // For now, let's keep it simple: we just track the count.
-    // The user said processMainCardRun needs workoutMetrics[].
-    // We'll need to store the metrics for each workout too.
-
+    // Save partial session data for this workout only once to avoid duplicate metrics
     const metricsKey = `${ATTEMPT_PREFIX}${attempt.id}_metrics`;
     const savedMetrics = await AsyncStorage.getItem(metricsKey);
     let metricsList = savedMetrics ? JSON.parse(savedMetrics) : [];
 
-    metricsList.push(calcSessionMetrics(sessionData));
-    await AsyncStorage.setItem(metricsKey, JSON.stringify(metricsList));
+    if (isNewCompletion) {
+        metricsList.push(calcSessionMetrics(sessionData));
+        await AsyncStorage.setItem(metricsKey, JSON.stringify(metricsList));
+    }
 
     let runProcessed = false;
     if (attempt.completedWorkouts.length === attempt.workoutIds.length) {
@@ -80,6 +81,7 @@ export async function recordWorkoutInAttempt(
                 runIndex: (await getMainCardState(cardId)).level + 1,
                 completedWorkoutCount: attempt.completedWorkouts.length,
                 dayKey: new Date().toISOString().split('T')[0],
+                attemptId: attempt.id,
             };
             await processMainCardRun(card, metricsList, ctx);
             runProcessed = true;

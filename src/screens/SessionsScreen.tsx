@@ -16,6 +16,8 @@ import Feather from 'react-native-vector-icons/Feather';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { allWorkouts } from '../constants/workoutData';
 import { calculateCalories } from '../utils/CalorieCalculator';
+import { getSessionCalories } from '../utils/SnapshotCalorieReader';
+import { parseStoredBodyWeight } from '../constants/bodyWeight';
 
 type SessionsScreenProps = StackScreenProps<RootStackParamList, 'SessionsScreen'>;
 
@@ -55,10 +57,20 @@ export default function SessionsScreen({ navigation }: SessionsScreenProps) {
       if (stored) {
         const allSummaries = JSON.parse(stored);
         
+        const storedBodyWeight = await AsyncStorage.getItem('userBodyWeight');
+        const bodyWeightKg = parseStoredBodyWeight(storedBodyWeight ?? 75);
+
         // Map to SessionData format
         const mappedSessions: SessionData[] = allSummaries.map((item: any, index: number) => {
           const weightVal = item.settings?.weight ? parseFloat(item.settings.weight) : 0;
-          const calories = calculateCalories(item.workoutId, item.elapsedTime, weightVal, item.completedReps);
+          // Phase 5B: Prefer snapshot calories, fallback to live calculation for legacy sessions
+          const calories = getSessionCalories(item.calories, {
+            workoutId: item.workoutId,
+            durationSeconds: item.elapsedTime,
+            bodyWeightKg,
+            liftedWeightKg: weightVal,
+            reps: item.completedReps,
+          });
           
           return {
             id: `${item.workoutId}-${item.date}-${index}`,

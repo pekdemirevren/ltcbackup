@@ -15,6 +15,7 @@ import {
     MONSTER_SET,
     normalizeIconRoles,
     calculateOVR,
+    getCalculatedOVRFromWorkout,
     getRarityFromOVR
 } from '../constants/collectibleWorkouts';
 import { ProgressRing, getLevelProgressInTier } from './ProgressRing';
@@ -142,7 +143,7 @@ export const CollectibleCardNew: React.FC<CollectibleCardNewProps> = React.memo(
     const { ovr, currentRarity, displayRarity, rarityConfig, boostedStats, primaryIconId, secondaryIconIds } = React.useMemo(() => {
         // PROJEDEKİ HESAPLAMA ARAÇLARI PASİF HALE GETİRİLDİ - SADECE VERİLEN VERİLER KULLANILIYOR
         const _stats = workout.baseStats;
-        const _ovr = workout.baseLevel;
+        const _ovr = getCalculatedOVRFromWorkout(workout);
 
         const getDisplayRarity = (rarity: string) => {
             const r = rarity.toLowerCase();

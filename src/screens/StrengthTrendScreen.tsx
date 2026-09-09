@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { BackButtonStyles } from '../styles/BackButtonStyle';
 import MetricColors from '../constants/MetricColors';
+import { getTotalVolume } from '../utils/SessionSnapshotReader';
 
 const COLORS = { background: '#000000', textWhite: '#FFFFFF', textGray: '#8E8E93', separator: '#2C2C2E' };
 const METRIC_COLOR = MetricColors.weight;
@@ -30,12 +31,7 @@ export default function StrengthTrendScreen({ navigation }: { navigation: any })
       const allSummaries = JSON.parse(stored);
       const now = new Date();
 
-      const getVolume = (s: any) => {
-        const weight = s.settings?.weight ? parseFloat(s.settings.weight) : 0;
-        const sets = s.completedSets || 0;
-        const reps = s.completedReps || 0;
-        return Math.round((weight * sets * reps) / 1000); // KG
-      };
+      const getVolume = (s: any) => getTotalVolume(s).value ?? 0;
 
       const monthly = new Array(12).fill(0);
       const yearFiltered = allSummaries.filter((s: any) => new Date(s.date).getFullYear() === now.getFullYear());

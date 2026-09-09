@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   StatusBar,
-  Dimensions,
 } from 'react-native';
 import { StackScreenProps } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/RootNavigator';
@@ -15,13 +14,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Feather from 'react-native-vector-icons/Feather';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { allWorkouts } from '../constants/workoutData';
-import { calculateCalories } from '../utils/CalorieCalculator';
+import { getSessionCalories } from '../utils/SnapshotCalorieReader';
+import { parseStoredBodyWeight, DEFAULT_BODY_WEIGHT_KG } from '../constants/bodyWeight';
+import { getTotalVolume, getActiveTime, getRestTime, getCalories } from '../utils/SessionSnapshotReader';
 import MetricColors from '../constants/MetricColors';
 import { TimerContext } from '../contexts/TimerContext';
 
 type WorkoutCategoryDetailProps = StackScreenProps<RootStackParamList, 'WorkoutCategoryDetail'>;
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 type TimeFilter = 'W' | 'M' | 'Y';
 
@@ -84,14 +84,22 @@ export default function WorkoutCategoryDetailScreen({ navigation, route }: Worko
 
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('W');
   const [stats, setStats] = useState<WorkoutStats>(defaultStats);
+  const [userBodyWeightKg, setUserBodyWeightKg] = useState<number>(DEFAULT_BODY_WEIGHT_KG);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadWorkoutStats();
-    }, [workoutId, workoutIds, timeFilter])
-  );
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const stored = await AsyncStorage.getItem('userBodyWeight');
+        const parsed = parseStoredBodyWeight(stored);
+        setUserBodyWeightKg(parsed);
+      } catch {
+        setUserBodyWeightKg(DEFAULT_BODY_WEIGHT_KG);
+      }
+    };
+    load();
+  }, []);
 
-  const loadWorkoutStats = async () => {
+  const loadWorkoutStats = useCallback(async () => {
     try {
       const stored = await AsyncStorage.getItem('workoutSummaries');
       if (stored) {
@@ -132,6 +140,7 @@ export default function WorkoutCategoryDetailScreen({ navigation, route }: Worko
 
         let wWeeklySets = 0, wWeeklyVolume = 0, wWeeklyActive = 0, wWeeklyRest = 0, wWeeklyReps = 0, wWeeklyElapsed = 0;
         let wTodaySets = 0, wTodayVolume = 0, wTodayActive = 0, wTodayRest = 0, wTodayReps = 0, wTodayElapsed = 0;
+        let wTodayEnergy = 0;
 
         const weeklySetsData = new Array(7).fill(0);
         const weeklyStrData = new Array(7).fill(0);
@@ -143,15 +152,22 @@ export default function WorkoutCategoryDetailScreen({ navigation, route }: Worko
 
         filteredSummaries.forEach((s: any) => {
           const sDate = new Date(s.date);
-          const activeTime = s.greenLoopTimes ? s.greenLoopTimes.reduce((a: any, b: any) => a + b, 0) : (s.elapsedTime || 0);
-          const restTime = s.redLoopTimes ? s.redLoopTimes.reduce((a: any, b: any) => a + b, 0) : 0;
-          const weightVal = s.settings?.weight ? parseFloat(s.settings.weight) : 0;
+          const activeTime = (getActiveTime(s).value) || 0;
+          const restTime = (getRestTime(s).value) || 0;
           const sets = (s.completedSets || 0);
           const reps = (s.completedReps || 0);
-          const vol = weightVal * sets * reps;
+          const vol = (getTotalVolume(s).value) || 0;
           const cadence = reps > 0 ? (activeTime / reps) : 0;
           const density = (s.elapsedTime || 0) > 0 ? (activeTime / s.elapsedTime) * 100 : 0;
-          const energy = Math.round(calculateCalories(s.workoutId, s.elapsedTime, weightVal, reps));
+          // Phase 5B: Prefer snapshot calories, fallback to live calculation for legacy sessions
+          const recordedWeight = typeof (s as any).liftedWeightKg === 'number' ? (s as any).liftedWeightKg : undefined;
+          const energy = Math.round(getSessionCalories(s.calories, {
+            workoutId: s.workoutId,
+            durationSeconds: s.elapsedTime,
+            bodyWeightKg: userBodyWeightKg,
+            liftedWeightKg: recordedWeight,
+            reps,
+          }));
 
           if (sDate >= sevenDaysAgo) {
             wWeeklySets += sets;
@@ -178,6 +194,8 @@ export default function WorkoutCategoryDetailScreen({ navigation, route }: Worko
             wTodayRest += restTime;
             wTodayElapsed += (s.elapsedTime || 0);
             wTodayReps += reps;
+            // Accumulate per-session authoritative energy (snapshot or fallback)
+            wTodayEnergy += energy;
           }
         });
 
@@ -199,7 +217,8 @@ export default function WorkoutCategoryDetailScreen({ navigation, route }: Worko
           consistency: Math.round((weeklyCounts.filter(c => c > 0).length / 7) * 100),
           endurance: Math.round(wTodayElapsed / 60),
           balance: 100,
-          energy: Math.round(calculateCalories(workoutId || '', wTodayElapsed, wTodayVolume > 0 ? wTodayVolume / (wTodaySets || 1) / (wTodayReps || 1) : 0, wTodayReps)),
+          // Use the sum of per-session energies (authoritative snapshots when present)
+          energy: Math.round(wTodayEnergy),
           weeklySets: wWeeklySets,
           weeklyStrength: Math.round(wWeeklyVolume / 1000),
           weeklyIntensity: wWeeklyActive > 0 ? `${parseFloat((wWeeklyRest / wWeeklyActive).toFixed(1))}:1` : "0:1",
@@ -225,7 +244,13 @@ export default function WorkoutCategoryDetailScreen({ navigation, route }: Worko
     } catch (e) {
       console.error('Error loading workout stats:', e);
     }
-  };
+  }, [workoutId, workoutIds, userBodyWeightKg]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadWorkoutStats();
+    }, [loadWorkoutStats])
+  );
 
   const weekDays = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 

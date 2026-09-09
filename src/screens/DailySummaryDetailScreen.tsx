@@ -16,11 +16,12 @@ import MetricColors from '../constants/MetricColors';
 import { LiquidGlass, LiquidGlassCard, LiquidGlassMenuItem } from '../components/LiquidGlass';
 import { loadWorkoutSettings } from '../utils/WorkoutSettingsManager';
 import { calculate1RM, calculateStrengthRatio, DEFAULT_BODY_WEIGHT_KG, calculateDSI, calculateWSI, getDSILevelLabel, getDSILevelColor, LiftData } from '../utils/StrengthCalculator';
+import { getDSIForSession, getTotalVolume, getActiveTime, getRestTime, getCalories, get1RM } from '../utils/SessionSnapshotReader';
 import { Swipeable } from 'react-native-gesture-handler';
 import { saveWorkoutSettings } from '../utils/WorkoutSettingsManager';
 import { collectibleWorkouts, collectibleRarityColors } from '../constants/collectibleWorkouts';
 import { loadWorkoutDayCards, WORKOUT_DAY_MUSCLE_GROUPS } from '../utils/WorkoutDayManager';
-
+import { parseStoredBodyWeight } from '../constants/bodyWeight';
 
 const EVENTS_STORAGE_KEY = '@workout_calendar_events';
 
@@ -159,12 +160,14 @@ export default function DailySummaryDetailScreen({ navigation, route }: DailySum
         });
 
         let dayActualVolume = 0;
-        let dMax1RM = 0;
+        let dayActualMax1RM = 0;
         const dData = new Array(24).fill(0);
         daySummaries.forEach((item: any) => {
-          const weightVal = item.settings?.weight ? parseFloat(item.settings.weight) : 0;
-          const volume = weightVal * (item.completedSets || 0) * (item.completedReps || 0);
+          const volume = getTotalVolume(item).value ?? 0;
           dayActualVolume += volume;
+
+          const item1RM = get1RM(item).value ?? 0;
+          if (item1RM > dayActualMax1RM) dayActualMax1RM = item1RM;
 
           if (d.getDate() === targetDate.getDate()) {
             const h = new Date(item.date).getHours();
@@ -172,24 +175,26 @@ export default function DailySummaryDetailScreen({ navigation, route }: DailySum
           }
         });
 
-        // PLANNED for this day - Calculate 1RM from planned workout settings (like WorkoutEventDetailScreen)
-        const dayEvent = allEvents.find((e: any) => e.date.split('T')[0] === dayStr);
-        const plannedData = await getEventGoalVolume(dayEvent);
+        // PLANNED for this day - aggregate every scheduled event for the date; using only the first event drops data when multiple workouts are planned for the same day.
+        const dayEvents = allEvents.filter((e: any) => e?.date && e.date.split('T')[0] === dayStr);
+        const dayWorkoutIds = dayEvents.flatMap((event: any) => Array.isArray(event?.workoutIds) ? event.workoutIds : []);
+        const plannedData = await getEventGoalVolume({ workoutIds: dayWorkoutIds });
         const dayGoalVolume = plannedData.volume || 1000;
 
         // Calculate planned 1RM from event workout settings (same as WorkoutEventDetailScreen)
         let plannedMax1RM = 0;
         const currentPlannedSettings: { [key: string]: any } = {};
 
-        // NEW: If dayEvent exists but workoutIds is empty, fallback to saved cards for that day type
-        let effectiveWorkoutIds = dayEvent?.workoutIds || [];
-        if (dayEvent && (!dayEvent.workoutIds || dayEvent.workoutIds.length === 0)) {
-          const savedCards = await loadWorkoutDayCards(dayEvent.workoutDay);
+        // NEW: If the day has scheduled events but no workoutIds, fallback to the first event's day type and saved cards.
+        let effectiveWorkoutIds = dayWorkoutIds;
+        const fallbackEvent = dayEvents[0];
+        if (fallbackEvent && (!fallbackEvent.workoutIds || fallbackEvent.workoutIds.length === 0)) {
+          const savedCards = await loadWorkoutDayCards(fallbackEvent.workoutDay);
           if (savedCards && savedCards.length > 0) {
             effectiveWorkoutIds = savedCards;
           } else {
             // Ultimate fallback based on muscle groups
-            const muscleGroups = WORKOUT_DAY_MUSCLE_GROUPS[dayEvent.workoutDay] || [];
+            const muscleGroups = WORKOUT_DAY_MUSCLE_GROUPS[fallbackEvent.workoutDay] || [];
             effectiveWorkoutIds = allWorkouts
               .filter(w => muscleGroups.includes(w.muscleGroup))
               .slice(0, 4)
@@ -197,44 +202,34 @@ export default function DailySummaryDetailScreen({ navigation, route }: DailySum
           }
         }
 
-        if (dayEvent && effectiveWorkoutIds.length > 0) {
-          const lifts: LiftData[] = [];
-          for (const wId of effectiveWorkoutIds) {
-            const settings = await loadWorkoutSettings(wId);
-            currentPlannedSettings[wId] = settings;
-
-            const weight = settings?.weight ? parseFloat(settings.weight) : 75;
-            const reps = settings?.targetReps ? parseInt(settings.targetReps) : 6;
-            const p1RM = calculate1RM(weight, reps);
-            if (p1RM > plannedMax1RM) plannedMax1RM = p1RM;
-
-            // Collect lift data for DSI
-            lifts.push({ weight, reps });
+        if (daySummaries && daySummaries.length > 0) {
+          // Compute day DSI from actual recorded session lifts (snapshot-first).
+          const dayDSIValues: number[] = [];
+          for (const s of daySummaries) {
+            const res = getDSIForSession(s);
+            if (res.value !== null) dayDSIValues.push(res.value);
           }
-
-          // Calculate DSI for this day
-          const storedBodyWeight = await AsyncStorage.getItem('userBodyWeight');
-          const bw = storedBodyWeight ? parseInt(storedBodyWeight, 10) : DEFAULT_BODY_WEIGHT_KG;
-          const dayDSI = calculateDSI(lifts, bw);
+          const dayDSI = dayDSIValues.length > 0 ? (dayDSIValues.reduce((a, b) => a + b, 0) / dayDSIValues.length) : 0;
           allWeekDSIs.push(dayDSI);
 
           if (d.getDate() === targetDate.getDate() && d.getMonth() === targetDate.getMonth()) {
             currentDayDSI = dayDSI;
           }
         } else {
+          // No actual sessions for this day; push zero as placeholder
           allWeekDSIs.push(0);
         }
 
         // Use the higher of actual or planned 1RM for the day
-        dMax1RM = Math.max(dMax1RM, plannedMax1RM);
+        dayMax1RM = Math.max(dayMax1RM, plannedMax1RM);
 
         // Update totalWRM from planned workouts
         totalWRM += plannedMax1RM;
         totalWRMGoal += plannedMax1RM > 0 ? plannedMax1RM : 300; // Use planned 1RM as goal, fallback to 300
 
         if (d.getDate() === targetDate.getDate() && d.getMonth() === targetDate.getMonth()) {
-          // Use planned 1RM from WorkoutEventDetailScreen approach
-          dayMax1RM = plannedMax1RM > 0 ? plannedMax1RM : dayMax1RM;
+          // Use actual historical 1RM when available; keep planned 1RM as a separate preview metric.
+          dayMax1RM = dayActualMax1RM > 0 ? dayActualMax1RM : plannedMax1RM;
 
           setDailyVolume(dayActualVolume);
           setDailyVolumeGoal(dayGoalVolume);
@@ -244,7 +239,7 @@ export default function DailySummaryDetailScreen({ navigation, route }: DailySum
 
           // Load user body weight from storage
           const storedBodyWeight = await AsyncStorage.getItem('userBodyWeight');
-          const bw = storedBodyWeight ? parseInt(storedBodyWeight, 10) : DEFAULT_BODY_WEIGHT_KG;
+          const bw = parseStoredBodyWeight(storedBodyWeight);
           setUserBodyWeight(bw);
           setDailyRatio(calculateStrengthRatio(dayMax1RM, bw));
 
@@ -266,7 +261,7 @@ export default function DailySummaryDetailScreen({ navigation, route }: DailySum
         wData.push({
           day: weekDays[i],
           date: new Date(d),
-          progress: Math.min((dMax1RM / 300) * 100, 100),
+          progress: Math.min((dayMax1RM / 300) * 100, 100),
           isSelected: d.getDate() === targetDate.getDate() && d.getMonth() === targetDate.getMonth()
         });
       }

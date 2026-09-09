@@ -6,6 +6,7 @@ import Feather from 'react-native-vector-icons/Feather';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import MetricColors from '../constants/MetricColors';
+import { getActiveTime, getRestTime } from '../utils/SessionSnapshotReader';
 
 type AllIntensityMetricsScreenProps = StackScreenProps<RootStackParamList, 'AllIntensityMetrics'>;
 
@@ -39,8 +40,8 @@ export default function AllIntensityMetricsScreen({ navigation }: AllIntensityMe
             const isSameDay = (d1: Date, d2: Date) =>
                 d1.getDate() === d2.getDate() && d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear();
 
-            const getRestTime = (s: any) => s.redLoopTimes ? s.redLoopTimes.reduce((a: number, b: number) => a + b, 0) : 0;
-            const getActiveTime = (s: any) => s.greenLoopTimes ? s.greenLoopTimes.reduce((a: number, b: number) => a + b, 0) : (s.elapsedTime || 0);
+            const getRestTimeValue = (s: any) => getRestTime(s).value ?? 0;
+            const getActiveTimeValue = (s: any) => getActiveTime(s).value ?? 0;
 
             if (selectedFrame === 'D') {
                 rData = new Array(24).fill(0);
@@ -48,8 +49,8 @@ export default function AllIntensityMetricsScreen({ navigation }: AllIntensityMe
                 const filtered = allSummaries.filter((s: any) => isSameDay(new Date(s.date), now));
                 filtered.forEach((s: any) => {
                     const h = new Date(s.date).getHours();
-                    rData[h] += getRestTime(s);
-                    aData[h] += getActiveTime(s);
+                    rData[h] += getRestTimeValue(s);
+                    aData[h] += getActiveTimeValue(s);
                 });
             } else if (selectedFrame === 'W') {
                 rData = new Array(7).fill(0);
@@ -59,8 +60,8 @@ export default function AllIntensityMetricsScreen({ navigation }: AllIntensityMe
                     d.setDate(now.getDate() - (6 - i));
                     const daySummaries = allSummaries.filter((s: any) => isSameDay(new Date(s.date), d));
                     daySummaries.forEach((s: any) => {
-                        rData[i] += getRestTime(s);
-                        aData[i] += getActiveTime(s);
+                        rData[i] += getRestTimeValue(s);
+                        aData[i] += getActiveTimeValue(s);
                     });
                 }
             } else if (selectedFrame === 'M') {
@@ -74,8 +75,8 @@ export default function AllIntensityMetricsScreen({ navigation }: AllIntensityMe
                 filtered.forEach((s: any) => {
                     const day = new Date(s.date).getDate() - 1;
                     if (day >= 0 && day < daysInMonth) {
-                        rData[day] += getRestTime(s);
-                        aData[day] += getActiveTime(s);
+                        rData[day] += getRestTimeValue(s);
+                        aData[day] += getActiveTimeValue(s);
                     }
                 });
             } else if (selectedFrame === 'Y') {
@@ -84,8 +85,8 @@ export default function AllIntensityMetricsScreen({ navigation }: AllIntensityMe
                 const filtered = allSummaries.filter((s: any) => new Date(s.date).getFullYear() === now.getFullYear());
                 filtered.forEach((s: any) => {
                     const m = new Date(s.date).getMonth();
-                    rData[m] += getRestTime(s);
-                    aData[m] += getActiveTime(s);
+                    rData[m] += getRestTimeValue(s);
+                    aData[m] += getActiveTimeValue(s);
                 });
             }
 
