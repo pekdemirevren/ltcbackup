@@ -38,6 +38,7 @@ import { ProgressRing, getLevelProgressInTier } from '../components/ProgressRing
 import { calculateExerciseMetrics } from '../utils/WorkoutCalculator';
 import { addWorkoutXP, getWorkoutLevel, getWorkoutXP, getXPForLevel } from '../utils/LevelSystem';
 import { loadWorkoutSettings, resolveWorkoutStartSettings } from '../utils/WorkoutSettingsManager';
+import { getSuggestedWorkoutSettings, SuggestedWorkoutSettings } from '../utils/WorkoutSuggestionResolver';
 import * as Icons from '../assets/icons';
 import WarriorIcon from '../assets/icons/skills/warrior';
 import WarmupProIcon from '../assets/icons/warmuppro';
@@ -173,6 +174,8 @@ const CollectibleWorkoutDetailScreen: React.FC<Props> = ({ route, navigation }) 
     const [currentXP, setCurrentXP] = useState(0);
     const [completedExercises, setCompletedExercises] = useState<Set<string>>(new Set());
     const [workoutSettings, setWorkoutSettings] = useState<Record<string, any>>({});
+    const [suggestedSettings, setSuggestedSettings] = useState<SuggestedWorkoutSettings>({});
+    const [showSuggestionModal, setShowSuggestionModal] = useState(false);
 
     const scrollY = useRef(new Animated.Value(0)).current;
 
@@ -354,8 +357,63 @@ const CollectibleWorkoutDetailScreen: React.FC<Props> = ({ route, navigation }) 
             const parsed = parseWorkoutName(firstExercise.name);
             const combinedId = `${workout.id}_${firstExercise.id}`;
             const savedSettings = await loadWorkoutSettings(combinedId);
-            const resolvedSettings = resolveWorkoutStartSettings(parsed, savedSettings);
+            
+            // Phase 46: Load suggestions from last session
+            const suggestions = await getSuggestedWorkoutSettings(combinedId);
+            
+            if (Object.keys(suggestions).length > 0) {
+                // Show suggestion modal if we have suggestions
+                setSuggestedSettings(suggestions);
+                setShowSuggestionModal(true);
+            } else {
+                // No suggestions, proceed with normal flow
+                const resolvedSettings = resolveWorkoutStartSettings(parsed, savedSettings);
+                timerContext.startTimerWithWorkoutSettings(
+                    combinedId,
+                    parsed.name,
+                    workout.id,
+                    workout.baseLevel,
+                    resolvedSettings,
+                );
+            }
+        }
+    };
 
+    const handleApplySuggestion = async () => {
+        if (timerContext && visibleExercises.length > 0) {
+            const firstExercise = visibleExercises[0];
+            const parsed = parseWorkoutName(firstExercise.name);
+            const combinedId = `${workout.id}_${firstExercise.id}`;
+            
+            // Apply suggestion as explicit override (highest precedence per Phase 37)
+            const explicitSettings = {
+                targetSets: suggestedSettings.sets,
+                targetReps: suggestedSettings.reps,
+                weight: suggestedSettings.weight,
+            };
+            
+            setShowSuggestionModal(false);
+            
+            timerContext.startTimerWithWorkoutSettings(
+                combinedId,
+                parsed.name,
+                workout.id,
+                workout.baseLevel,
+                explicitSettings,
+            );
+        }
+    };
+
+    const handleSkipSuggestion = async () => {
+        if (timerContext && visibleExercises.length > 0) {
+            const firstExercise = visibleExercises[0];
+            const parsed = parseWorkoutName(firstExercise.name);
+            const combinedId = `${workout.id}_${firstExercise.id}`;
+            const savedSettings = await loadWorkoutSettings(combinedId);
+            const resolvedSettings = resolveWorkoutStartSettings(parsed, savedSettings);
+            
+            setShowSuggestionModal(false);
+            
             timerContext.startTimerWithWorkoutSettings(
                 combinedId,
                 parsed.name,
@@ -839,6 +897,64 @@ const CollectibleWorkoutDetailScreen: React.FC<Props> = ({ route, navigation }) 
                     </TouchableOpacity>
                 </View>
             </Animated.ScrollView >
+
+            {/* Phase 46: Suggestion Modal */}
+            <Modal
+                visible={showSuggestionModal}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setShowSuggestionModal(false)}
+            >
+                <TouchableWithoutFeedback onPress={() => setShowSuggestionModal(false)}>
+                    <View style={styles.suggestionModalOverlay}>
+                        <TouchableWithoutFeedback>
+                            <View style={[styles.suggestionModalContent, { backgroundColor: '#1a1a1a', borderColor: rarityConfig.primary }]}>
+                                <Text style={styles.suggestionModalTitle}>Suggested from Last Workout</Text>
+
+                                {suggestedSettings.weight && (
+                                    <View style={styles.suggestionRow}>
+                                        <MaterialCommunityIcons name="weight-kilogram" size={20} color={rarityConfig.primary} />
+                                        <Text style={styles.suggestionLabel}>Weight:</Text>
+                                        <Text style={[styles.suggestionValue, { color: rarityConfig.primary }]}>{suggestedSettings.weight} kg</Text>
+                                    </View>
+                                )}
+
+                                {suggestedSettings.sets && (
+                                    <View style={styles.suggestionRow}>
+                                        <MaterialCommunityIcons name="repeat" size={20} color={rarityConfig.primary} />
+                                        <Text style={styles.suggestionLabel}>Sets:</Text>
+                                        <Text style={[styles.suggestionValue, { color: rarityConfig.primary }]}>{suggestedSettings.sets}</Text>
+                                    </View>
+                                )}
+
+                                {suggestedSettings.reps && (
+                                    <View style={styles.suggestionRow}>
+                                        <MaterialCommunityIcons name="dumbbell" size={20} color={rarityConfig.primary} />
+                                        <Text style={styles.suggestionLabel}>Reps:</Text>
+                                        <Text style={[styles.suggestionValue, { color: rarityConfig.primary }]}>{suggestedSettings.reps}</Text>
+                                    </View>
+                                )}
+
+                                <View style={styles.suggestionButtonContainer}>
+                                    <TouchableOpacity
+                                        style={[styles.suggestionButton, { backgroundColor: rarityConfig.primary }]}
+                                        onPress={handleApplySuggestion}
+                                    >
+                                        <Text style={[styles.suggestionButtonText, { color: rarityConfig.text || '#000000' }]}>Apply Suggested</Text>
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity
+                                        style={[styles.suggestionButton, { backgroundColor: '#333', borderWidth: 1, borderColor: rarityConfig.primary }]}
+                                        onPress={handleSkipSuggestion}
+                                    >
+                                        <Text style={[styles.suggestionButtonText, { color: rarityConfig.primary }]}>Use Saved Settings</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        </TouchableWithoutFeedback>
+                    </View>
+                </TouchableWithoutFeedback>
+            </Modal>
         </View >
     );
 }
@@ -1347,6 +1463,91 @@ const styles: any = StyleSheet.create({
         overflow: 'hidden',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.05)',
+    },
+    // Phase 46: Suggestion modal styles
+    suggestionModalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    suggestionModalContent: {
+        borderRadius: 20,
+        padding: 24,
+        borderWidth: 2,
+        width: '90%',
+        maxWidth: 320,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.7,
+        shadowRadius: 20,
+        elevation: 15,
+    },
+    suggestionModalTitle: {
+        fontSize: 16,
+        fontWeight: '900',
+        color: '#FFF',
+        textAlign: 'center',
+        marginBottom: 20,
+        letterSpacing: 0.5,
+    },
+    suggestionRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 16,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        borderRadius: 10,
+    },
+    suggestionLabel: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#888',
+        marginLeft: 12,
+        marginRight: 8,
+    },
+    suggestionValue: {
+        fontSize: 16,
+        fontWeight: '900',
+        marginLeft: 'auto',
+    },
+    suggestionButtonContainer: {
+        gap: 12,
+        marginTop: 20,
+    },
+    suggestionButton: {
+        paddingVertical: 14,
+        paddingHorizontal: 16,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    suggestionButtonText: {
+        fontSize: 14,
+        fontWeight: '700',
+        letterSpacing: 0.5,
+    },
+    // Start button styles (if not defined elsewhere)
+    startButton: {
+        marginHorizontal: 40,
+        paddingVertical: 16,
+        borderRadius: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 40,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.4,
+        shadowRadius: 12,
+        elevation: 8,
+    },
+    startButtonText: {
+        fontSize: 16,
+        fontWeight: '900',
+        letterSpacing: 1,
+        textTransform: 'uppercase',
     },
 });
 
