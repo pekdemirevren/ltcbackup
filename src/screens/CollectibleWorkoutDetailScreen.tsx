@@ -6,6 +6,7 @@ import Feather from 'react-native-vector-icons/Feather';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StackScreenProps } from '@react-navigation/stack';
+import { useFocusEffect } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/RootNavigator';
 import { findExerciseIcon } from '../constants/workoutData';
 import { TimerContext } from '../contexts/TimerContext';
@@ -18,6 +19,7 @@ import {
     MONSTER_SET,
     normalizeIconRoles,
     calculateOVR,
+    getCalculatedOVRFromWorkout,
     getRarityFromOVR,
     Rarity
 } from '../constants/collectibleWorkouts';
@@ -35,6 +37,7 @@ import { getMythologyCategoryConfig } from '../constants/mythologyCategories';
 import { ProgressRing, getLevelProgressInTier } from '../components/ProgressRing';
 import { calculateExerciseMetrics } from '../utils/WorkoutCalculator';
 import { addWorkoutXP, getWorkoutLevel, getWorkoutXP, getXPForLevel } from '../utils/LevelSystem';
+import { loadWorkoutSettings, resolveWorkoutStartSettings } from '../utils/WorkoutSettingsManager';
 import * as Icons from '../assets/icons';
 import WarriorIcon from '../assets/icons/skills/warrior';
 import WarmupProIcon from '../assets/icons/warmuppro';
@@ -173,6 +176,73 @@ const CollectibleWorkoutDetailScreen: React.FC<Props> = ({ route, navigation }) 
 
     const scrollY = useRef(new Animated.Value(0)).current;
 
+    useFocusEffect(
+        React.useCallback(() => {
+            let isMounted = true;
+            const loadLevelData = async () => {
+                if (!workout) return;
+                const level = await getWorkoutLevel(workout.id, workout.baseLevel);
+                const xp = await getWorkoutXP(workout.id);
+                if (isMounted) {
+                    setCurrentLevel(level);
+                    setCurrentXP(xp);
+                }
+            };
+
+            const loadExerciseStats = async () => {
+                if (!workout) return;
+                try {
+                    const settingsMap: Record<string, any> = {};
+
+                    for (const exercise of workout.exercises) {
+                        const combinedId = `${workout.id}_${exercise.id}`;
+                        const settings = await loadWorkoutSettings(combinedId);
+                        settingsMap[exercise.id] = settings;
+                    }
+
+                    if (isMounted) {
+                        setWorkoutSettings(settingsMap);
+                    }
+                } catch (e) {
+                    console.error('Failed to load settings:', e);
+                }
+            };
+
+            const loadCompletionStatus = async () => {
+                try {
+                    const summariesStr = await AsyncStorage.getItem('workoutSummaries');
+                    const summaries = summariesStr ? JSON.parse(summariesStr) : [];
+                    const today = new Date().toISOString().split('T')[0];
+                    const todaySummaries = summaries.filter((s: any) => s.date.startsWith(today));
+
+                    const completedIds = new Set<string>();
+                    todaySummaries.forEach((s: any) => {
+                        const wId = String(s.workoutId);
+                        completedIds.add(wId);
+                        // Also add the base ID if it's a combined ID
+                        if (wId.includes('_')) {
+                            const parts = wId.split('_');
+                            completedIds.add(parts[parts.length - 1]);
+                        }
+                    });
+
+                    if (isMounted) {
+                        setCompletedExercises(completedIds);
+                    }
+                } catch (e) {
+                    console.error('Failed to load exercise completion status:', e);
+                }
+            };
+
+            void loadLevelData();
+            void loadExerciseStats();
+            void loadCompletionStatus();
+            return () => {
+                isMounted = false;
+            };
+        }, [workoutId, workout?.id])
+    );
+
     useEffect(() => {
         let isMounted = true;
         const loadLevelData = async () => {
@@ -256,7 +326,7 @@ const CollectibleWorkoutDetailScreen: React.FC<Props> = ({ route, navigation }) 
     // Normalize icon roles to prevent Olympians appearing as secondary
     const { primaryIconId, secondaryIconIds, thread, secondaryTraits } = normalizeIconRoles(workout);
     const boostedStats = workout.baseStats;
-    const ovr = workout.baseLevel;
+    const ovr = getCalculatedOVRFromWorkout(workout);
 
     // Exercises logic
     const visibleExercises = workout.exercises;
@@ -283,19 +353,16 @@ const CollectibleWorkoutDetailScreen: React.FC<Props> = ({ route, navigation }) 
             const firstExercise = visibleExercises[0];
             const parsed = parseWorkoutName(firstExercise.name);
             const combinedId = `${workout.id}_${firstExercise.id}`;
+            const savedSettings = await loadWorkoutSettings(combinedId);
+            const resolvedSettings = resolveWorkoutStartSettings(parsed, savedSettings);
+
             timerContext.startTimerWithWorkoutSettings(
                 combinedId,
                 parsed.name,
                 workout.id,
                 workout.baseLevel,
-
-                parsed.sets ? {
-                    targetSets: parsed.sets,
-                    targetReps: parsed.reps,
-                    weight: parsed.weight
-                } : undefined
+                resolvedSettings,
             );
-            navigation.goBack();
         }
     };
 
@@ -776,7 +843,7 @@ const CollectibleWorkoutDetailScreen: React.FC<Props> = ({ route, navigation }) 
     );
 }
 
-const styles = StyleSheet.create({
+const styles: any = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#000' },
     loadingText: { color: '#FFF', fontSize: 16, textAlign: 'center', marginTop: 100 },
     headerContainer: {
@@ -873,9 +940,7 @@ const styles = StyleSheet.create({
     bottomSection: {
         flex: 1,
         justifyContent: 'center',
-        marginTop: '25%', // Increased from 15% to shift stats down ~20px
-        paddingBottom: 30,
-        paddingHorizontal: 0,
+        marginTop: '25%' // Increased from 15% to shift stats down ~20px
     },
     bottomBackground: {
         marginTop: -5, // Slight bleed for better coverage
@@ -993,6 +1058,11 @@ const styles = StyleSheet.create({
         paddingHorizontal: 0,
         gap: 5,
     },
+    secondaryIconRowBelowStats: {
+        marginTop: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
     statColumnFIFA: {
         alignItems: 'center',
         justifyContent: 'center',
@@ -1010,391 +1080,63 @@ const styles = StyleSheet.create({
         fontFamily: Platform.OS === 'ios' ? 'DINPro-CondensedBold' : 'sans-serif-condensed',
         lineHeight: 38,
     },
-    skillsIconsRowFIFA: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        width: 110,
-        height: 110,
-        justifyContent: 'center',
-        alignItems: 'center',
-        gap: 8,
-    },
-    topRightGridFIFA: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginTop: 2,
-        gap: 5,
-    },
-    footerLogos: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        gap: 12,
-        marginTop: 15,
-    },
-    workoutChevronContainer: {
-        position: 'absolute',
-        top: 10,
-        right: 12,
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    startButton: {
-        height: 54,
-        borderRadius: 30,
-        backgroundColor: '#9DEC2C',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginTop: 10,
-        marginBottom: 0,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 5,
-    },
-    startButtonText: { color: '#000000', fontWeight: '600', fontSize: 20 },
-    topRingContainer: {
-        marginTop: 8,
-    },
-    bottomShortDivider: {
-        width: 40,
-        height: 1.5,
-        borderRadius: 1,
-        alignSelf: 'center',
-        marginTop: 12,
-    },
-    majorSectionContainer: {
-        marginHorizontal: 0,
-        borderRadius: 16, // Classic thinner look
-        overflow: 'hidden',
-        marginBottom: 20,
-    },
-    sectionTitle: {
-        fontSize: 13,
-        fontWeight: '900',
-        color: '#8E8E93',
-        letterSpacing: 2,
-    },
-    workoutsSection: {
-        backgroundColor: '#1C1C1E',
-        borderRadius: 16,
-        padding: 12,
-        marginBottom: 20,
-    },
-    recessedPickerWrapper: {
-        width: '100%',
-        position: 'relative',
-        marginTop: 12,
-    },
-    pickerGradient: {
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        height: 20,
-        zIndex: 1,
-    },
-    workoutCardThin: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#242426',
-        borderRadius: 24,
-        paddingHorizontal: 12,
-        paddingVertical: 14,
-        minHeight: 50,
-        marginBottom: 10,
-        overflow: 'hidden',
-    },
-    workoutIconGradient: {
-        width: 50,
-        height: 50,
-        borderRadius: 25,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 12,
-    },
-    chevronCircle: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-        backgroundColor: '#8E8E93', // Headings-like grey
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    workoutInfo: {
-        flex: 1,
-    },
-    workoutCardName: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#FFF',
-        marginBottom: 4,
-    },
-    workoutValue: {
-        color: '#9DEC2C',
-        fontSize: 22,
-        fontWeight: '500',
-    },
-    workoutUnit: {
-        color: '#9DEC2C',
-        fontSize: 13,
-        fontWeight: '500',
-        marginLeft: 4,
-        letterSpacing: 0.5,
-    },
-    workoutSeparator: {
-        color: '#9DEC2C',
-        fontSize: 13,
-        fontWeight: '500',
-        marginHorizontal: 4,
-    },
-    workoutStatusContainer: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 12,
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
-        marginLeft: 8,
-    },
-    workoutStatusLabel: {
-        fontSize: 10,
-        fontWeight: '700',
-        letterSpacing: 1,
-    },
-    subStatsSection: {
-        marginBottom: 24,
-    },
-    attributeGroups: {
-        gap: 16,
-    },
-    attributeGroup: {
-        backgroundColor: '#1C1C1E',
-        borderRadius: 24,
-        padding: 20,
-    },
-    groupTitle: {
-        fontSize: 16,
-        fontWeight: '900',
-        letterSpacing: 2,
-        color: '#FFFFFF',
-    },
-    attributeHeaderRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: 20,
-        paddingBottom: 10,
-        borderBottomWidth: 1.5,
-        borderBottomColor: 'rgba(255,255,255,0.08)',
-    },
-    attributeTitleGroup: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    groupStatValue: {
-        fontSize: 20,
-        fontWeight: '900',
-        fontFamily: Platform.OS === 'ios' ? 'DINPro-CondensedBold' : 'sans-serif-condensed',
-    },
-    attributeChevronContainer: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-        backgroundColor: 'rgba(255, 255, 255, 0.06)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginLeft: 10,
-    },
-    attributeContent: {
-        paddingHorizontal: 4,
-    },
-    subStatItem: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: 6,
-        borderBottomWidth: 1,
-        borderBottomColor: '#2C2C2E',
-    },
-    subStatLabel: {
-        fontSize: 14,
-        fontWeight: '700',
-        flex: 1,
-    },
-    subStatValueRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        width: '45%',
-    },
-    subStatBarContainer: {
-        flex: 1,
-        height: 6,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        borderRadius: 3,
-        overflow: 'hidden',
-    },
-    subStatBarFill: {
-        height: '100%',
-        borderRadius: 3,
-    },
-    subStatValue: {
-        fontSize: 16,
-        fontWeight: '900',
-        width: 30,
-        textAlign: 'right',
-    },
     skillsSection: {
-        marginBottom: 24,
+        marginTop: 18,
+        marginBottom: 12,
     },
     skillsScroll: {
-        paddingRight: 60,
+        paddingRight: 8,
+        paddingVertical: 8,
     },
     skillCard: {
-        width: SCREEN_WIDTH * 0.65,
-        borderRadius: 24,
-        padding: 6,
-        backgroundColor: '#1C1C1E',
-        justifyContent: 'space-between',
-        borderWidth: 1.5,
-        borderColor: '#3A3A3C',
-    },
-    skillHeader: {
+        width: 180,
+        borderWidth: 1,
+        borderRadius: 18,
+        padding: 12,
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 10,
-        marginBottom: 8,
     },
     skillIconContainer: {
-        width: 41,
-        height: 41,
-        borderRadius: 8,
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        justifyContent: 'center',
+        width: 46,
+        height: 46,
+        borderRadius: 23,
         alignItems: 'center',
-        overflow: 'hidden',
+        justifyContent: 'center',
+        marginRight: 10,
+        position: 'relative',
     },
-
     lockOverlay: {
-        ...StyleSheet.absoluteFillObject,
+        position: 'absolute',
+        right: -4,
+        bottom: -2,
+        width: 18,
+        height: 18,
+        borderRadius: 9,
         backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'center',
         alignItems: 'center',
+        justifyContent: 'center',
     },
     skillInfo: {
         flex: 1,
-        justifyContent: 'center',
-    },
-    skillNameContainer: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
     },
     skillName: {
-        fontSize: 20,
-        fontWeight: '900',
-        letterSpacing: 0.5,
-    },
-    skillDesc: {
         fontSize: 13,
-        lineHeight: 18,
-        fontWeight: '500',
-        opacity: 0.8,
-        marginBottom: 12,
-    },
-    skillFooter: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginTop: 'auto',
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(255,255,255,0.05)',
-        paddingTop: 8,
+        fontWeight: '700',
+        marginBottom: 2,
     },
     skillLevel: {
-        fontSize: 16,
-        fontWeight: '800',
-        letterSpacing: 0.5,
+        fontSize: 11,
+        fontWeight: '600',
+        letterSpacing: 0.8,
+        textTransform: 'uppercase',
     },
     skillBoosts: {
-        flexDirection: 'row',
-        gap: 8,
+        marginTop: 6,
+        gap: 2,
     },
     skillBoostText: {
-        fontSize: 17,
-        fontWeight: '900',
-    },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.7)',
-        justifyContent: 'flex-end',
-    },
-    modalContainer: {
-        backgroundColor: '#1C1C1E',
-        borderTopLeftRadius: 32,
-        borderTopRightRadius: 32,
-        padding: 24,
-        paddingBottom: 40,
-        maxHeight: '80%',
-    },
-    modalHandle: {
-        width: 40,
-        height: 4,
-        backgroundColor: '#333',
-        borderRadius: 2,
-        alignSelf: 'center',
-        marginBottom: 20,
-    },
-    modalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 30,
-    },
-    modalTitle: {
-        fontSize: 24,
-        fontWeight: '900',
-        letterSpacing: 1,
-    },
-    modalValue: {
-        fontSize: 32,
-        fontWeight: '900',
-    },
-    modalContent: {
-        gap: 20,
-    },
-    modalStatItem: {
-        marginBottom: 15,
-    },
-    modalStatLabelRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: 8,
-    },
-    modalStatLabel: {
-        fontSize: 14,
-        color: '#8E8E93',
+        fontSize: 10,
         fontWeight: '600',
-        letterSpacing: 0.5,
-    },
-    modalStatValue: {
-        fontSize: 16,
-        color: '#FFF',
-        fontWeight: '700',
-    },
-    modalCloseButton: {
-        marginTop: 30,
-        paddingVertical: 16,
-        borderRadius: 16,
-        alignItems: 'center',
-    },
-    modalCloseText: {
-        fontSize: 16,
-        fontWeight: '700',
     },
     loreContainer: {
         marginTop: 40,
@@ -1513,13 +1255,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         zIndex: -1,
         opacity: 0.9,
-    },
-    secondaryIconRowBelowStats: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginTop: -10, // Shifted 10px higher from 5 to -5
-        opacity: 0.8,
     },
     // 2x3 Grid Styles
     statsGrid2x3: {

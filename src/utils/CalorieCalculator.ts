@@ -1,4 +1,13 @@
 import { displayNameToWorkoutId } from './workoutGenerator';
+import { DEFAULT_BODY_WEIGHT_KG } from '../constants/bodyWeight';
+
+export interface CalculateCaloriesOptions {
+    workoutId: string;
+    durationSeconds: number;
+    bodyWeightKg?: number;
+    liftedWeightKg?: number;
+    reps?: number;
+}
 
 // Standard MET values for various activities
 // Source: Compendium of Physical Activities
@@ -37,34 +46,32 @@ const MET_VALUES: { [key: string]: number } = {
     'default': 4.5
 };
 
-// Average body weight in kg (used if user weight is not applicable or for base calculations)
-const DEFAULT_BODY_WEIGHT_KG = 75;
-
 /**
  * Calculates the estimated calories burned for a specific workout.
- * 
- * @param workoutId - The unique identifier for the workout (e.g., 'bench_press')
- * @param durationSeconds - The duration of the workout in seconds
- * @param liftedWeightKg - (Optional) The weight used in the exercise (resistance)
- * @param reps - (Optional) The total number of repetitions performed
- * @returns The estimated number of calories burned (kcal)
+ *
+ * Preferred contract:
+ * calculateCalories({
+ *   workoutId,
+ *   durationSeconds,
+ *   bodyWeightKg,
+ *   liftedWeightKg,
+ *   reps,
+ * })
+ *
+ * Legacy positional calls remain supported during migration to avoid breaking older callers.
  */
-export const calculateCalories = (
-    workoutId: string, 
-    durationSeconds: number, 
-    liftedWeightKg: number = 0, 
-    reps: number = 0
-): number => {
-    // Normalize workoutId
-    const normalizedId = workoutId.toLowerCase().replace(/-/g, '_');
-    
-    // Get Base MET
-    let met = MET_VALUES[normalizedId] || MET_VALUES['default'];
+export function calculateCalories(options: CalculateCaloriesOptions): number {
+    const workoutId = options.workoutId;
+    const resolvedDurationSeconds = options.durationSeconds;
+    const bodyWeightKg = options.bodyWeightKg;
+    const resolvedLiftedWeightKg = options.liftedWeightKg ?? 0;
+    const resolvedReps = options.reps ?? 0;
 
-    // Duration in hours
-    const durationHours = durationSeconds / 3600;
+    const effectiveBodyWeightKg = Number.isFinite(bodyWeightKg as number) ? Number(bodyWeightKg) : DEFAULT_BODY_WEIGHT_KG;
+    const normalizedId = String(workoutId).toLowerCase().replace(/-/g, '_');
+    const met = MET_VALUES[normalizedId] || MET_VALUES['default'];
+    const durationHours = resolvedDurationSeconds / 3600;
 
-    // Logic Split: Cardio vs Strength
     const isCardio = [
         'outdoor_run', 'outdoor_walk', 'outdoor_cycle', 'biking', 
         'cross_trainer', 'jump_rope', 'swinging_the_rope'
@@ -73,33 +80,19 @@ export const calculateCalories = (
     let calories = 0;
 
     if (isCardio) {
-        // Cardio Formula: Calories = MET * BodyWeight * Duration(hours)
-        // We assume standard body weight since we don't track user body weight in settings usually
-        calories = met * DEFAULT_BODY_WEIGHT_KG * durationHours;
+        calories = met * effectiveBodyWeightKg * durationHours;
     } else {
-        // Strength Formula: Adjusted for intensity (Lifted Weight)
-        // Base Calorie Burn (Metabolic cost of moving body + baseline)
-        const baseCalories = met * DEFAULT_BODY_WEIGHT_KG * durationHours;
-
-        // Intensity Factor:
-        // If liftedWeight is provided, we increase the burn.
-        // Heuristic: Lifting 50kg adds ~20% intensity to the base MET for that duration
+        const baseCalories = met * effectiveBodyWeightKg * durationHours;
         let intensityMultiplier = 1;
-        if (liftedWeightKg > 0) {
-            intensityMultiplier = 1 + (liftedWeightKg / 200); // e.g. 100kg adds 50%
+        if (resolvedLiftedWeightKg > 0) {
+            intensityMultiplier = 1 + (resolvedLiftedWeightKg / 200);
         }
 
-        // Reps Factor:
-        // If reps are high, it implies more continuous movement (less rest), maintaining the MET
-        // If reps are low but time is high, it implies lots of rest.
-        // We can use reps to validate the "active" nature of the duration.
-        // For now, we'll stick to the intensity multiplier on the base duration.
-        
         calories = baseCalories * intensityMultiplier;
     }
 
     return Math.round(calories);
-};
+}
 
 /**
  * Helper to get a description of the calorie burn intensity

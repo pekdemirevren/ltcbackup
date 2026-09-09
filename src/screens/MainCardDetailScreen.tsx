@@ -10,6 +10,7 @@ import {
     Animated,
 } from 'react-native';
 import { StackScreenProps } from '@react-navigation/stack';
+import { useFocusEffect } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/RootNavigator';
 import LinearGradient from 'react-native-linear-gradient';
 import Feather from 'react-native-vector-icons/Feather';
@@ -38,10 +39,6 @@ export default function MainCardDetailScreen({ route, navigation }: any) {
 
     if (!card) return null;
 
-    useEffect(() => {
-        loadData();
-    }, [cardId]);
-
     const loadData = async () => {
         const [s, a] = await Promise.all([
             getMainCardState(cardId),
@@ -50,6 +47,16 @@ export default function MainCardDetailScreen({ route, navigation }: any) {
         setState(s);
         setAttempt(a);
     };
+
+    useFocusEffect(
+        React.useCallback(() => {
+            void loadData();
+        }, [cardId])
+    );
+
+    useEffect(() => {
+        void loadData();
+    }, [cardId]);
 
     const rarityConfig = collectibleRarityColors[card.rarity as keyof typeof collectibleRarityColors] || collectibleRarityColors.GOLD;
 
@@ -67,14 +74,16 @@ export default function MainCardDetailScreen({ route, navigation }: any) {
         const workoutData = allWorkouts.find(w => w.workoutId === nextWorkoutId || w.id === nextWorkoutId);
 
         if (timerContext && workoutData) {
-            timerContext.startTimerWithWorkoutSettings(workoutData.workoutId, workoutData.name);
-            // Pass mainCardId and attemptId to the timer
-            navigation.navigate('Timer', {
-                workoutId: workoutData.workoutId,
-                workoutName: workoutData.name,
-                mainCardId: card.id,
-                attemptId: currentAttempt.id
-            });
+            // Pass mainCardId and attemptId so the Timer and save flow can record the attempt
+            timerContext.startTimerWithWorkoutSettings(
+                workoutData.workoutId,
+                workoutData.name,
+                undefined,
+                undefined,
+                undefined,
+                card.id,
+                currentAttempt.id,
+            );
         }
     };
 

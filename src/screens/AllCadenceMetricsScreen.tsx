@@ -6,6 +6,7 @@ import Feather from 'react-native-vector-icons/Feather';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import MetricColors from '../constants/MetricColors';
+import { getActiveTime } from '../utils/SessionSnapshotReader';
 
 type AllCadenceMetricsScreenProps = StackScreenProps<RootStackParamList, 'AllCadenceMetrics'>;
 
@@ -39,7 +40,7 @@ export default function AllCadenceMetricsScreen({ navigation }: AllCadenceMetric
             const isSameDay = (d1: Date, d2: Date) =>
                 d1.getDate() === d2.getDate() && d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear();
 
-            const getActiveTime = (s: any) => s.greenLoopTimes ? s.greenLoopTimes.reduce((a: number, b: number) => a + b, 0) : (s.elapsedTime || 0);
+            const getActiveTimeValue = (s: any) => getActiveTime(s).value ?? 0;
 
             if (selectedFrame === 'D') {
                 aData = new Array(24).fill(0);
@@ -47,7 +48,7 @@ export default function AllCadenceMetricsScreen({ navigation }: AllCadenceMetric
                 const filtered = allSummaries.filter((s: any) => isSameDay(new Date(s.date), now));
                 filtered.forEach((s: any) => {
                     const h = new Date(s.date).getHours();
-                    aData[h] += getActiveTime(s);
+                    aData[h] += getActiveTimeValue(s);
                     rData[h] += (s.completedReps || 0);
                 });
             } else if (selectedFrame === 'W') {
@@ -58,7 +59,7 @@ export default function AllCadenceMetricsScreen({ navigation }: AllCadenceMetric
                     d.setDate(now.getDate() - (6 - i));
                     const daySummaries = allSummaries.filter((s: any) => isSameDay(new Date(s.date), d));
                     daySummaries.forEach((s: any) => {
-                        aData[i] += getActiveTime(s);
+                        aData[i] += getActiveTimeValue(s);
                         rData[i] += (s.completedReps || 0);
                     });
                 }
@@ -73,7 +74,7 @@ export default function AllCadenceMetricsScreen({ navigation }: AllCadenceMetric
                 filtered.forEach((s: any) => {
                     const day = new Date(s.date).getDate() - 1;
                     if (day >= 0 && day < daysInMonth) {
-                        aData[day] += getActiveTime(s);
+                        aData[day] += getActiveTimeValue(s);
                         rData[day] += (s.completedReps || 0);
                     }
                 });
@@ -83,7 +84,7 @@ export default function AllCadenceMetricsScreen({ navigation }: AllCadenceMetric
                 const filtered = allSummaries.filter((s: any) => new Date(s.date).getFullYear() === now.getFullYear());
                 filtered.forEach((s: any) => {
                     const m = new Date(s.date).getMonth();
-                    aData[m] += getActiveTime(s);
+                    aData[m] += getActiveTimeValue(s);
                     rData[m] += (s.completedReps || 0);
                 });
             }

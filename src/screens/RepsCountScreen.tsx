@@ -8,6 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { allWorkouts } from '../constants/workoutData';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
+import { getTotalVolume } from '../utils/SessionSnapshotReader';
 
 type RepsCountScreenProps = StackScreenProps<RootStackParamList, 'RepsCount'>;
 
@@ -46,8 +47,7 @@ export default function RepsCountScreen({ navigation }: RepsCountScreenProps) {
         filtered = allSummaries.filter((s: any) => isSameDay(new Date(s.date), now));
         filtered.forEach((s: any) => {
           const h = new Date(s.date).getHours();
-          const weightVal = s.settings?.weight ? parseFloat(s.settings.weight) : 0;
-          const volume = weightVal * (s.completedSets || 0) * (s.completedReps || 0);
+          const volume = getTotalVolume(s).value ?? 0;
           wData[h] += volume;
         });
       } else if (selectedFrame === 'W') {
@@ -57,8 +57,7 @@ export default function RepsCountScreen({ navigation }: RepsCountScreenProps) {
           d.setDate(now.getDate() - (6 - i));
           const daySummaries = allSummaries.filter((s: any) => isSameDay(new Date(s.date), d));
           daySummaries.forEach((s: any) => {
-            const weightVal = s.settings?.weight ? parseFloat(s.settings.weight) : 0;
-            const volume = weightVal * (s.completedSets || 0) * (s.completedReps || 0);
+            const volume = getTotalVolume(s).value ?? 0;
             wData[i] += volume;
           });
         }
@@ -77,8 +76,7 @@ export default function RepsCountScreen({ navigation }: RepsCountScreenProps) {
         filtered.forEach((s: any) => {
           const day = new Date(s.date).getDate() - 1;
           if (day >= 0 && day < daysInMonth) {
-            const weightVal = s.settings?.weight ? parseFloat(s.settings.weight) : 0;
-            const volume = weightVal * (s.completedSets || 0) * (s.completedReps || 0);
+            const volume = getTotalVolume(s).value ?? 0;
             wData[day] += volume;
           }
         });
@@ -87,8 +85,7 @@ export default function RepsCountScreen({ navigation }: RepsCountScreenProps) {
         filtered = allSummaries.filter((s: any) => new Date(s.date).getFullYear() === now.getFullYear());
         filtered.forEach((s: any) => {
           const m = new Date(s.date).getMonth();
-          const weightVal = s.settings?.weight ? parseFloat(s.settings.weight) : 0;
-          const volume = weightVal * (s.completedSets || 0) * (s.completedReps || 0);
+          const volume = getTotalVolume(s).value ?? 0;
           wData[m] += volume;
         });
       }

@@ -1,9 +1,13 @@
+import { DEFAULT_BODY_WEIGHT_KG } from '../constants/bodyWeight';
+
+export { DEFAULT_BODY_WEIGHT_KG } from '../constants/bodyWeight';
+
 /**
  * Strength Intensity and 1RM (One Rep Max) Calculation Utility
  * Uses the Epley formula for 1RM prediction.
  */
 
-export const DEFAULT_BODY_WEIGHT_KG = 75;
+// Default body weight is centralized in src/constants/bodyWeight.ts.
 
 /**
  * Calculates the predicted One Rep Max (1RM) using the Epley formula.

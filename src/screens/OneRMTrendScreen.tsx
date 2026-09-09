@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { BackButtonStyles } from '../styles/BackButtonStyle';
 import { calculate1RM, calculateStrengthRatio, DEFAULT_BODY_WEIGHT_KG, getStrengthLevelLabel } from '../utils/StrengthCalculator';
+import { get1RM } from '../utils/SessionSnapshotReader';
 
 const COLORS = { background: '#000000', textWhite: '#FFFFFF', textGray: '#8E8E93', separator: '#2C2C2E' };
 const METRIC_COLOR = '#F9104E'; // Red for 1RM
@@ -31,11 +32,7 @@ export default function OneRMTrendScreen({ navigation }: { navigation: any }) {
             const now = new Date();
 
             // Calculate 1RM from each session
-            const get1RM = (s: any) => {
-                const weight = s.settings?.weight ? parseFloat(s.settings.weight) : 0;
-                const reps = s.completedReps || s.settings?.targetReps || 6;
-                return calculate1RM(weight, parseInt(reps, 10));
-            };
+            const getHistorical1RM = (s: any) => get1RM(s).value ?? 0;
 
             // Monthly best 1RM
             const monthly = new Array(12).fill(0);
@@ -44,7 +41,7 @@ export default function OneRMTrendScreen({ navigation }: { navigation: any }) {
             yearFiltered.forEach((s: any) => {
                 const d = new Date(s.date);
                 const month = d.getMonth();
-                const oneRM = get1RM(s);
+                const oneRM = getHistorical1RM(s);
                 if (oneRM > monthly[month]) monthly[month] = Math.round(oneRM);
             });
             setMonthlyData(monthly);
@@ -57,7 +54,7 @@ export default function OneRMTrendScreen({ navigation }: { navigation: any }) {
                 const daySummaries = allSummaries.filter((s: any) => isSameDay(new Date(s.date), d));
                 let dayBest = 0;
                 daySummaries.forEach((s: any) => {
-                    const oneRM = get1RM(s);
+                    const oneRM = getHistorical1RM(s);
                     if (oneRM > dayBest) dayBest = oneRM;
                 });
                 weekly[i] = Math.round(dayBest);
@@ -68,7 +65,7 @@ export default function OneRMTrendScreen({ navigation }: { navigation: any }) {
             // All-time best 1RM
             let allTimeBest = 0;
             allSummaries.forEach((s: any) => {
-                const oneRM = get1RM(s);
+                const oneRM = getHistorical1RM(s);
                 if (oneRM > allTimeBest) allTimeBest = oneRM;
             });
             setBest1RM(Math.round(allTimeBest));

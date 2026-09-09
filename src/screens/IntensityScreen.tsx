@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { TrendChart } from '../components/TrendChart';
 import MetricColors from '../constants/MetricColors';
+import { getActiveTime, getRestTime } from '../utils/SessionSnapshotReader';
 
 type IntensityScreenProps = StackScreenProps<RootStackParamList, 'Intensity'>;
 
@@ -37,8 +38,8 @@ export default function IntensityScreen({ navigation }: IntensityScreenProps) {
                 d1.getDate() === d2.getDate() && d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear();
 
             const getIntensityRatio = (s: any) => {
-                const activeTime = s.greenLoopTimes ? s.greenLoopTimes.reduce((a: number, b: number) => a + b, 0) : s.elapsedTime;
-                const restTime = s.redLoopTimes ? s.redLoopTimes.reduce((a: number, b: number) => a + b, 0) : 0;
+                const activeTime = getActiveTime(s).value ?? 0;
+                const restTime = getRestTime(s).value ?? 0;
                 if (activeTime === 0) return 0;
                 return restTime / activeTime;
             };

@@ -399,448 +399,104 @@ export function GenericWorkoutSettingsScreen({ route, navigation }: GenericWorko
         if (!currentSettings) return;
         const { collectibleCardId, collectibleBaseLevel } = route.params || {};
 
-        // Save current settings (though they should be saved by sub-screens)
         await saveWorkoutSettings(currentSettings);
 
-        // Start timer with these settings
-        timerContext.startTimerWithWorkoutSettings(workoutId, workoutName, collectibleCardId, collectibleBaseLevel);
-
-        navigation.goBack();
+        timerContext.startTimerWithWorkoutSettings(
+            workoutId,
+            workoutName,
+            collectibleCardId,
+            collectibleBaseLevel,
+            {
+                targetSets: currentSettings.targetSets,
+                targetReps: currentSettings.targetReps,
+                weight: currentSettings.weight,
+            },
+        );
     };
 
     const handleBack = () => {
         navigation.goBack();
     };
 
-    const handleNavigate = (screen: any, params: any) => {
-        setModalVisible(false);
-        const { collectibleCardId, collectibleBaseLevel } = route.params || {};
-        navigation.navigate(screen, { ...params, collectibleCardId, collectibleBaseLevel });
-    };
-
-
-    const handleDeleteBlock = async (blockId: string) => {
-        if (!currentSettings) return;
-        const updatedBlocks = currentSettings.customBlocks?.filter(b => b.id !== blockId) || [];
-        const updatedSettings = { ...currentSettings, customBlocks: updatedBlocks };
-        setCurrentSettings(updatedSettings);
-        await saveWorkoutSettings(updatedSettings);
-    };
-
-    const confirmDeleteBlock = useCallback((blockId: string) => {
-        if (isDeleteAlertOpen.current) return;
-        isDeleteAlertOpen.current = true;
-
-        Alert.alert(
-            "Delete Block",
-            "Are you sure you want to delete this block?",
-            [
-                {
-                    text: "Cancel",
-                    style: "cancel",
-                    onPress: () => {
-                        isDeleteAlertOpen.current = false;
-                    }
-                },
-                {
-                    text: "Delete",
-                    style: "destructive",
-                    onPress: async () => {
-                        await handleDeleteBlock(blockId);
-                        isDeleteAlertOpen.current = false;
-                    }
-                }
-            ],
-            { onDismiss: () => { isDeleteAlertOpen.current = false; } }
-        );
-    }, [currentSettings]);
-
-
-
-
-
-    const handleDeleteDefaultBlock = async (blockType: string) => {
-        if (!currentSettings) return;
-        const hiddenCards = currentSettings.hiddenCards || [];
-        if (!hiddenCards.includes(blockType)) {
-            const updatedSettings = { ...currentSettings, hiddenCards: [...hiddenCards, blockType] };
-            setCurrentSettings(updatedSettings);
-            await saveWorkoutSettings(updatedSettings);
-        }
-    };
-
-    const confirmDeleteDefaultBlock = useCallback((blockType: string) => {
-        if (isDeleteAlertOpen.current) return;
-        isDeleteAlertOpen.current = true;
-
-        Alert.alert(
-            "Delete Block",
-            "Are you sure you want to delete this block?",
-            [
-                {
-                    text: "Cancel",
-                    style: "cancel",
-                    onPress: () => {
-                        isDeleteAlertOpen.current = false;
-                    }
-                },
-                {
-                    text: "Delete",
-                    style: "destructive",
-                    onPress: async () => {
-                        await handleDeleteDefaultBlock(blockType);
-                        isDeleteAlertOpen.current = false;
-                    }
-                }
-            ],
-            { onDismiss: () => { isDeleteAlertOpen.current = false; } }
-        );
-    }, [currentSettings]);
-
     if (!currentSettings) return null;
 
+    const summaryItems = [
+        { label: 'Loop', value: `${currentSettings.infiniteLoopTime || '30'} sec` },
+        { label: 'Time', value: `${currentSettings.greenTime || '30'} / ${currentSettings.restTime || '15'} s` },
+        { label: 'Reps', value: `${currentSettings.targetSets || '3'} x ${currentSettings.targetReps || '6'}` },
+        { label: 'Weight', value: `${currentSettings.weight || '75'} kg` },
+    ];
+
+    const localStyles = StyleSheet.create({
+        cardGrid: {
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            justifyContent: 'space-between',
+            marginTop: 12,
+        },
+        card: {
+            width: '48%',
+            borderRadius: 18,
+            padding: 16,
+            marginBottom: 12,
+        },
+        cardTitle: {
+            fontSize: 12,
+            color: '#A7A7A7',
+            marginBottom: 10,
+            textTransform: 'uppercase',
+            letterSpacing: 0.8,
+        },
+        cardValue: {
+            fontSize: 18,
+            fontWeight: '700',
+        },
+        startButton: {
+            marginTop: 8,
+            backgroundColor: '#9DEC2C',
+            borderRadius: 14,
+            paddingVertical: 16,
+            alignItems: 'center',
+        },
+        startButtonText: {
+            color: '#000',
+            fontSize: 15,
+            fontWeight: '700',
+        },
+    });
+
     return (
-        <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.container, { backgroundColor: colors.background }]}> 
             <StatusBar barStyle="light-content" backgroundColor="transparent" />
-            {/* Top Back Button */}
+
             <View style={styles.topBackButton}>
-                <TouchableOpacity onPress={handleBack} style={[styles.backButton, { backgroundColor: colors.backButtonBackground }]}>
+                <TouchableOpacity onPress={handleBack} style={[styles.backButton, { backgroundColor: colors.backButtonBackground }]}> 
                     <Theme.Icons.back.lib width={36} height={36} color={colors.text} />
                 </TouchableOpacity>
             </View>
 
-            {/* Header */}
             <View style={styles.header}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-
-                    <Text style={styles.headerTitle}>{workoutName}</Text>
-                </View>
+                <Text style={styles.headerTitle}>{workoutName}</Text>
             </View>
 
             <ScrollView contentContainerStyle={styles.scrollContent}>
-                {/* Loop Card */}
-                {/* Note: Loop might not apply to all workouts but keeping for consistency */}
-                <TouchableOpacity style={[styles.card, { backgroundColor: colors.quickStart.card }]} onPress={() => navigation.navigate('LoopSelection', { workoutId, workoutName, isAddMode: false })} activeOpacity={0.8}>
-                    <View style={styles.iconContainer}>
-                        <Theme.Icons.infinity.lib width={32} height={32} color={colors.quickStart.primary} />
-                    </View>
-                    <View style={styles.cardTextContainer}>
-                        <Text style={[styles.cardTitle, { color: '#e5e5e5' }]}>Loop</Text>
-                        <Text style={[styles.cardValue, { color: colors.quickStart.primary }]}>
-                            {currentSettings?.infiniteLoopTime || '30'}sec
-                        </Text>
-                    </View>
-                    <TouchableOpacity
-                        style={[styles.playIconContainer, { backgroundColor: colors.quickStart.primary }]}
-                        onPress={() => {
-                            if (currentSettings) {
-                                timerContext.startInfiniteLoopWithSpeed(
-                                    {
-                                        time: currentSettings.infiniteLoopTime || '30',
-                                        speed: (currentSettings.infiniteSpeed || 1000) / 1000
-                                    },
-                                    { workoutId, workoutName }
-                                );
-                            } else {
-                                timerContext.startInfiniteLoopWithSpeed(
-                                    { time: '30', speed: 1.0 },
-                                    { workoutId, workoutName }
-                                );
-                            }
-                        }}
-                        activeOpacity={0.7}
-                    >
-                        <Theme.Icons.play.lib width={33} height={33} color={colors.playIconText} />
-                    </TouchableOpacity>
+                <View style={localStyles.cardGrid}>
+                    {summaryItems.map((item) => (
+                        <View key={item.label} style={[localStyles.card, { backgroundColor: colors.quickStart.card }]}> 
+                            <Text style={[localStyles.cardTitle, { color: '#e5e5e5' }]}>{item.label}</Text>
+                            <Text style={[localStyles.cardValue, { color: colors.quickStart.primary }]}>{item.value}</Text>
+                        </View>
+                    ))}
+                </View>
+
+                <TouchableOpacity
+                    style={localStyles.startButton}
+                    onPress={() => handleStartWorkout()}
+                    activeOpacity={0.9}
+                >
+                    <Text style={localStyles.startButtonText}>Start workout</Text>
                 </TouchableOpacity>
-
-                {/* Time Card */}
-                {!currentSettings.hiddenCards?.includes('time') && (
-                    <Swipeable
-                        ref={timeSwipeableRef}
-                        renderRightActions={(progress, dragX) => (
-                            <BlockRightActions
-                                progress={progress}
-                                dragX={dragX}
-                                blockId="default-time"
-                                onDeepSwipeStatus={(isDeep) => {
-                                    deepSwipeTriggered.current = isDeep;
-                                }}
-                                onDeletePress={() => confirmDeleteDefaultBlock('time')}
-                            />
-                        )}
-                        rightThreshold={40}
-                        overshootRight={true}
-                        friction={1.25}
-                        useNativeAnimations={false}
-                        onSwipeableOpen={() => {
-                            if (deepSwipeTriggered.current) {
-                                confirmDeleteDefaultBlock('time');
-                                deepSwipeTriggered.current = false;
-                                timeSwipeableRef.current?.close();
-                            }
-                        }}
-                    >
-                        <TouchableOpacity style={[styles.card, { backgroundColor: colors.time.card }]} onPress={() => navigation.navigate('TimeSelectionScreen', { settings: currentSettings, workoutId, isAddMode: false })} activeOpacity={0.8}>
-                            <View style={styles.iconContainer}>
-                                <Theme.Icons.time.lib width={32} height={32} color={colors.time.primary} />
-                            </View>
-                            <View style={styles.cardTextContainer}>
-                                <Text style={[styles.cardTitle, { color: '#e5e5e5' }]}>Time</Text>
-                                <Text style={[styles.cardValue, { color: colors.time.primary }]}>
-                                    {currentSettings?.greenTime || '30'}s / {currentSettings?.restTime || '15'}s
-                                </Text>
-                            </View>
-                            <TouchableOpacity style={[styles.playIconContainer, { backgroundColor: colors.time.primary }]} onPress={() => handleStartWorkout(true)} activeOpacity={0.7}>
-                                <Theme.Icons.play.lib width={33} height={33} color={colors.playIconText} />
-                            </TouchableOpacity>
-                        </TouchableOpacity>
-                    </Swipeable>
-                )}
-
-                {/* Speed Card */}
-                {!currentSettings.hiddenCards?.includes('speed') && (
-                    <Swipeable
-                        ref={speedSwipeableRef}
-                        renderRightActions={(progress, dragX) => (
-                            <BlockRightActions
-                                progress={progress}
-                                dragX={dragX}
-                                blockId="default-speed"
-                                onDeepSwipeStatus={(isDeep) => {
-                                    deepSwipeTriggered.current = isDeep;
-                                }}
-                                onDeletePress={() => confirmDeleteDefaultBlock('speed')}
-                            />
-                        )}
-                        rightThreshold={40}
-                        overshootRight={true}
-                        friction={1.25}
-                        useNativeAnimations={false}
-                        onSwipeableOpen={() => {
-                            if (deepSwipeTriggered.current) {
-                                confirmDeleteDefaultBlock('speed');
-                                deepSwipeTriggered.current = false;
-                                speedSwipeableRef.current?.close();
-                            }
-                        }}
-                    >
-                        <TouchableOpacity style={[styles.card, { backgroundColor: colors.speed.card }]} onPress={() => navigation.navigate('SpeedSelectionScreen', { settings: currentSettings, workoutId, isAddMode: false })} activeOpacity={0.8}>
-                            <View style={styles.iconContainer}>
-                                <SpeedIcon width={36} height={36} color={colors.speed.primary} />
-                            </View>
-                            <View style={styles.cardTextContainer}>
-                                <Text style={[styles.cardTitle, { color: '#e5e5e5' }]}>Speed</Text>
-                                <Text style={[styles.cardValue, { color: colors.speed.primary }]}>
-                                    {(currentSettings?.greenCountdownSpeed || 1000) / 1000}s / {(currentSettings?.redCountdownSpeed || 1000) / 1000}s
-                                </Text>
-                            </View>
-                            <TouchableOpacity style={[styles.playIconContainer, { backgroundColor: colors.speed.primary }]} onPress={() => handleStartWorkout(true)} activeOpacity={0.7}>
-                                <Theme.Icons.play.lib width={33} height={33} color={colors.playIconText} />
-                            </TouchableOpacity>
-                        </TouchableOpacity>
-                    </Swipeable>
-                )}
-
-                {/* Lap Card */}
-                {!currentSettings.hiddenCards?.includes('lap') && (
-                    <Swipeable
-                        ref={lapSwipeableRef}
-                        renderRightActions={(progress, dragX) => (
-                            <BlockRightActions
-                                progress={progress}
-                                dragX={dragX}
-                                blockId="default-lap"
-                                onDeepSwipeStatus={(isDeep) => {
-                                    deepSwipeTriggered.current = isDeep;
-                                }}
-                                onDeletePress={() => confirmDeleteDefaultBlock('lap')}
-                            />
-                        )}
-                        rightThreshold={40}
-                        overshootRight={true}
-                        friction={1.25}
-                        useNativeAnimations={false}
-                        onSwipeableOpen={() => {
-                            if (deepSwipeTriggered.current) {
-                                confirmDeleteDefaultBlock('lap');
-                                deepSwipeTriggered.current = false;
-                                lapSwipeableRef.current?.close();
-                            }
-                        }}
-                    >
-                        <TouchableOpacity style={[styles.card, { backgroundColor: colors.lap.card }]} onPress={() => navigation.navigate('LapSelectionScreen', { settings: currentSettings, workoutId, isAddMode: false })} activeOpacity={0.8}>
-                            <View style={styles.iconContainer}>
-                                <Theme.Icons.lap.lib width={32} height={32} color={colors.lap.primary} />
-                            </View>
-                            <View style={styles.cardTextContainer}>
-                                <Text style={[styles.cardTitle, { color: '#e5e5e5' }]}>Sets</Text>
-                                <Text style={[styles.cardValue, { color: colors.lap.primary }]}>
-                                    {currentSettings?.greenReps || '3'} Sets / {currentSettings?.redReps || '3'} Reps
-                                </Text>
-                            </View>
-                            <TouchableOpacity style={[styles.playIconContainer, { backgroundColor: colors.lap.primary }]} onPress={() => handleStartWorkout(true)} activeOpacity={0.7}>
-                                <Theme.Icons.play.lib width={33} height={33} color={colors.playIconText} />
-                            </TouchableOpacity>
-                        </TouchableOpacity>
-                    </Swipeable>
-                )}
-
-                {/* Weight Card */}
-                {!currentSettings.hiddenCards?.includes('weight') && (
-                    <Swipeable
-                        ref={weightSwipeableRef}
-                        renderRightActions={(progress, dragX) => (
-                            <BlockRightActions
-                                progress={progress}
-                                dragX={dragX}
-                                blockId="default-weight"
-                                onDeepSwipeStatus={(isDeep) => {
-                                    deepSwipeTriggered.current = isDeep;
-                                }}
-                                onDeletePress={() => confirmDeleteDefaultBlock('weight')}
-                            />
-                        )}
-                        rightThreshold={40}
-                        overshootRight={true}
-                        friction={1.25}
-                        useNativeAnimations={false}
-                        onSwipeableOpen={() => {
-                            if (deepSwipeTriggered.current) {
-                                confirmDeleteDefaultBlock('weight');
-                                deepSwipeTriggered.current = false;
-                                weightSwipeableRef.current?.close();
-                            }
-                        }}
-                    >
-                        <TouchableOpacity style={[styles.card, { backgroundColor: colors.weight.card }]} onPress={() => navigation.navigate('WeightSelectionScreen', { settings: currentSettings, workoutId, isAddMode: false })} activeOpacity={0.8}>
-                            <View style={styles.iconContainer}>
-                                <WeightIcon width={32} height={32} color={colors.weight.primary} />
-                            </View>
-                            <View style={styles.cardTextContainer}>
-                                <Text style={[styles.cardTitle, { color: '#e5e5e5' }]}>Weight</Text>
-                                <Text style={[styles.cardValue, { color: colors.weight.primary }]}>
-                                    {currentSettings?.weight || '75'}kg
-                                </Text>
-                            </View>
-                            <TouchableOpacity style={[styles.playIconContainer, { backgroundColor: colors.weight.primary }]} onPress={() => handleStartWorkout(true)} activeOpacity={0.7}>
-                                <Theme.Icons.play.lib width={33} height={33} color={colors.playIconText} />
-                            </TouchableOpacity>
-                        </TouchableOpacity>
-                    </Swipeable>
-                )}
-
-                {/* Custom Blocks */}
-                {currentSettings?.customBlocks?.map((block) => (
-                    <SwipeableBlock
-                        key={block.id}
-                        block={block}
-                        colors={colors}
-                        timerContext={timerContext}
-                        workoutId={workoutId}
-                        workoutName={workoutName}
-                        navigation={navigation}
-                        onDelete={confirmDeleteBlock}
-                    />
-                ))}
-
-
-
-
-                {/* Plus icon below last card */}
-                <View style={{ alignItems: 'center', marginTop: 24, marginBottom: 24 }}>
-                    <TouchableOpacity
-                        style={{
-                            backgroundColor: '#1B1C1E',
-                            borderRadius: 23,
-                            width: 47,
-                            height: 47,
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                            elevation: 4,
-                        }}
-                        onPress={() => setModalVisible(true)}
-                    >
-                        <PlusIcon width={32} height={32} color={colors.quickStart.primary} />
-                    </TouchableOpacity>
-                </View>
-
             </ScrollView>
-
-            {/* Modal with four cards: Loop, Time, Speed, Lap */}
-            <Modal visible={modalVisible} animationType="slide" transparent>
-                <View style={{ flex: 1, backgroundColor: '#000', justifyContent: 'flex-end' }}>
-                    <View style={{ flex: 1, backgroundColor: '#1B1C1E', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, minHeight: 320, marginTop: 48 }}>
-                        <View style={{ alignItems: 'center', marginBottom: 24, marginTop: 8, justifyContent: 'center' }}>
-                            <Text style={{ color: '#e5e5e5', fontSize: 19, fontWeight: 'bold', letterSpacing: 0.5, textAlign: 'center' }}>Add Workout</Text>
-                        </View>
-                        {/* Loop Card */}
-                        <TouchableOpacity style={[styles.card, { backgroundColor: colors.quickStart.card, marginBottom: 8, marginTop: 32 }]} onPress={() => handleNavigate('LoopSelection', { workoutId, isAddMode: true })} activeOpacity={0.8}>
-                            <View style={styles.iconContainer}>
-                                <Theme.Icons.infinity.lib width={32} height={32} color={colors.quickStart.primary} />
-                            </View>
-                            <View style={styles.cardTextContainer}>
-                                <Text style={[styles.cardTitle, { color: '#e5e5e5' }]}>Loop</Text>
-                            </View>
-                        </TouchableOpacity>
-                        {/* Time Card (modal) */}
-                        <TouchableOpacity style={[styles.card, { backgroundColor: colors.time.cardModal, marginBottom: 8 }]} onPress={() => handleNavigate('TimeSelectionScreen', { workoutId, isAddMode: true })} activeOpacity={0.8}>
-                            <View style={styles.iconContainer}>
-                                <Theme.Icons.time.lib width={32} height={32} color={colors.time.primary} />
-                            </View>
-                            <View style={styles.cardTextContainer}>
-                                <Text style={[styles.cardTitle, { color: '#e5e5e5' }]}>Time</Text>
-                            </View>
-                        </TouchableOpacity>
-                        {/* Speed Card (modal) */}
-                        <TouchableOpacity style={[styles.card, { backgroundColor: colors.speed.cardModal, marginBottom: 8 }]} onPress={() => handleNavigate('SpeedSelectionScreen', { workoutId, isAddMode: true })} activeOpacity={0.8}>
-                            <View style={styles.iconContainer}>
-                                <SpeedIcon width={36} height={36} color={colors.speed.primary} />
-                            </View>
-                            <View style={styles.cardTextContainer}>
-                                <Text style={[styles.cardTitle, { color: '#e5e5e5' }]}>Speed</Text>
-                            </View>
-                        </TouchableOpacity>
-                        {/* Lap Card (modal) */}
-                        <TouchableOpacity style={[styles.card, { backgroundColor: colors.lap.cardModal, marginBottom: 8 }]} onPress={() => handleNavigate('LapSelectionScreen', { workoutId, isAddMode: true })} activeOpacity={0.8}>
-                            <View style={styles.iconContainer}>
-                                <Theme.Icons.lap.lib width={32} height={32} color={colors.lap.primary} />
-                            </View>
-                            <View style={styles.cardTextContainer}>
-                                <Text style={[styles.cardTitle, { color: '#e5e5e5' }]}>Lap</Text>
-                            </View>
-                        </TouchableOpacity>
-                        {/* Weight Card (modal) */}
-                        <TouchableOpacity style={[styles.card, { backgroundColor: colors.weight.cardModal, marginBottom: 8 }]} onPress={() => handleNavigate('WeightSelectionScreen', { workoutId, isAddMode: true })} activeOpacity={0.8}>
-                            <View style={styles.iconContainer}>
-                                <WeightIcon width={32} height={32} color={colors.weight.primary} />
-                            </View>
-                            <View style={styles.cardTextContainer}>
-                                <Text style={[styles.cardTitle, { color: '#e5e5e5' }]}>Weight</Text>
-                            </View>
-                        </TouchableOpacity>
-                        {/* Close button - top left corner */}
-                        <View style={{ position: 'absolute', top: 16, left: 16, zIndex: 10 }}>
-                            <TouchableOpacity
-                                style={{
-                                    backgroundColor: '#222',
-                                    borderRadius: 22,
-                                    width: 44,
-                                    height: 44,
-                                    justifyContent: 'center',
-                                    alignItems: 'center',
-                                    borderWidth: 0.8,
-                                    borderColor: 'rgba(255,255,255,0.18)',
-                                    elevation: 4,
-                                }}
-                                onPress={() => setModalVisible(false)}
-                            >
-                                <MaterialCommunityIcons name="close" size={28.8} color="#fff" />
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </View>
-            </Modal>
-        </View >
+        </View>
     );
 }

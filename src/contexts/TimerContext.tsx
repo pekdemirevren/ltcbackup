@@ -53,6 +53,8 @@ export interface TimerContextType {
       targetReps?: string;
       weight?: string;
     },
+    mainCardId?: string,
+    attemptId?: string,
   ) => Promise<void>;
 
   startTimerWithCurrentSettings: (
@@ -231,6 +233,8 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
         targetReps?: string;
         weight?: string;
       },
+      mainCardId?: string,
+      attemptId?: string,
     ) => {
       try {
         console.log(
@@ -283,7 +287,7 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
         setIsPaused(false);
         setTimerKey(prevKey => prevKey + 1);
 
-        const navigationParams = {
+        const navigationParams: any = {
           workoutId,
           workoutName: finalWorkoutName,
           settings: {
@@ -304,6 +308,9 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
           initialInfiniteSpeed: workoutSettings.infiniteSpeed || infiniteSpeed,
           collectibleCardId,
           collectibleBaseLevel,
+          // propagate main-card context when starting from a program run
+          mainCardId,
+          attemptId,
         };
 
         console.log(

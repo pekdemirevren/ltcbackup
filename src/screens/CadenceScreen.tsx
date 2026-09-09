@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { TrendChart } from '../components/TrendChart';
 import MetricColors from '../constants/MetricColors';
+import { getActiveTime } from '../utils/SessionSnapshotReader';
 
 type CadenceScreenProps = StackScreenProps<RootStackParamList, 'Cadence'>;
 
@@ -37,7 +38,7 @@ export default function CadenceScreen({ navigation }: CadenceScreenProps) {
                 d1.getDate() === d2.getDate() && d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear();
 
             const getCadence = (s: any) => {
-                const activeTime = s.greenLoopTimes ? s.greenLoopTimes.reduce((a: number, b: number) => a + b, 0) : s.elapsedTime;
+                const activeTime = getActiveTime(s).value ?? 0;
                 const totalReps = s.completedReps || 1;
                 return activeTime / totalReps;
             };

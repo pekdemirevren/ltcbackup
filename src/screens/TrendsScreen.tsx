@@ -9,6 +9,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import MetricColors from '../constants/MetricColors';
 import { calculateCalories } from '../utils/CalorieCalculator';
+import { getSessionCalories } from '../utils/SnapshotCalorieReader';
+import { getTotalVolume, getCalories, getActiveTime, getRestTime } from '../utils/SessionSnapshotReader';
+import { parseStoredBodyWeight } from '../constants/bodyWeight';
 
 type TrendsScreenProps = StackScreenProps<RootStackParamList, 'Trends'>;
 
@@ -52,7 +55,9 @@ export default function TrendsScreen({ navigation }: TrendsScreenProps) {
       const stored = await AsyncStorage.getItem('workoutSummaries');
       const settingsStr = await AsyncStorage.getItem('userSettings');
       const settings = settingsStr ? JSON.parse(settingsStr) : {};
-      const userWeight = settings.weight ? parseFloat(settings.weight) : 70;
+      const bodyWeightKg = parseStoredBodyWeight(
+        (await AsyncStorage.getItem('userBodyWeight')) ?? settings.weight ?? settings.bodyWeight ?? 75
+      );
 
       if (stored) {
         const allSummaries = JSON.parse(stored);
@@ -74,13 +79,16 @@ export default function TrendsScreen({ navigation }: TrendsScreenProps) {
           filtered.forEach((s: any) => {
             const ds = new Date(s.date).toDateString();
             if (!grouped[ds]) grouped[ds] = { kcal: 0, volume: 0, sets: 0, duration: 0, reps: 0, activeTime: 0, restTime: 0 };
-            const weight = s.settings?.weight ? parseFloat(s.settings.weight) : 0;
             const sets = s.completedSets || 0;
             const reps = s.completedReps || 0;
-            const vol = weight * sets * reps;
-            const kcal = s.activeCalories ? parseFloat(s.activeCalories) : calculateCalories(s.workoutType || 'Strength', s.elapsedTime || 0, s.intensity || 'Medium', userWeight);
-            const activeTime = s.activeTime || 0;
-            const restTime = s.restTime || 0;
+            // Total volume: snapshot-first via SessionSnapshotReader
+            const volRes = getTotalVolume(s);
+            const vol = volRes.value ?? 0;
+            // Calories: snapshot-first (via getCalories helper)
+            const kcal = (getCalories(s).value) || 0;
+            // Active/rest time via accessors
+            const activeTime = (getActiveTime(s).value) || 0;
+            const restTime = (getRestTime(s).value) || 0;
 
             grouped[ds].kcal += kcal;
             grouped[ds].volume += vol;

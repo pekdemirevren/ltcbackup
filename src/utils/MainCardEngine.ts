@@ -73,7 +73,8 @@ export async function getMainCardState(cardId: string): Promise<MainCardState> {
             gains: { STR: 0, VOL: 0, TMP: 0, END: 0, PHY: 0, HYP: 0 },
             shards: {},
             unlockedSecondaries: [],
-            currentAttemptId: null
+            currentAttemptId: null,
+            processedAttemptIds: []
         };
     } catch (e) {
         console.error('Failed to get main card state:', e);
@@ -84,7 +85,8 @@ export async function getMainCardState(cardId: string): Promise<MainCardState> {
             gains: { STR: 0, VOL: 0, TMP: 0, END: 0, PHY: 0, HYP: 0 },
             shards: {},
             unlockedSecondaries: [],
-            currentAttemptId: null
+            currentAttemptId: null,
+            processedAttemptIds: []
         };
     }
 }
@@ -103,6 +105,16 @@ export async function processMainCardRun(
     shardsGained: Record<string, number>
 }> {
     const state = await getMainCardState(card.id);
+    const processedAttemptIds = Array.isArray(state.processedAttemptIds) ? state.processedAttemptIds : [];
+
+    if (ctx.attemptId && processedAttemptIds.includes(ctx.attemptId)) {
+        return {
+            state,
+            leveledUp: false,
+            gainsFromRun: { STR: 0, VOL: 0, TMP: 0, END: 0, PHY: 0, HYP: 0 },
+            shardsGained: {}
+        };
+    }
 
     // Requirement: At least 70% of workouts in the package completed
     const completionRate = ctx.completedWorkoutCount / card.workoutIds.length;
@@ -158,6 +170,10 @@ export async function processMainCardRun(
             }
         }
     });
+
+    if (ctx.attemptId) {
+        state.processedAttemptIds = Array.from(new Set([...processedAttemptIds, ctx.attemptId]));
+    }
 
     // Save state
     await AsyncStorage.setItem(`${MAIN_CARD_STATE_PREFIX}${card.id}`, JSON.stringify(state));

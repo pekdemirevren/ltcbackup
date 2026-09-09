@@ -299,7 +299,7 @@ export default function CreateWorkoutEventScreen({ navigation, route }: CreateWo
           if (extras.length > 0) {
             let foundNext = false;
             let daysToTry = 1;
-            // Iterate day by day until we match one of the selected weekdays
+            // Iterate day by day until we match one of the selected weekday
             while (daysToTry <= 7 * interval) {
               const nextDate = new Date(currentDate);
               nextDate.setDate(nextDate.getDate() + 1);
@@ -441,7 +441,29 @@ export default function CreateWorkoutEventScreen({ navigation, route }: CreateWo
 
         if (index > -1) {
           const oldEvent = events[index];
-          events[index] = newEvent;
+          const shouldRefreshSeries = oldEvent.repeat !== 'never' || repeat !== 'never';
+
+          let baseEvents = events;
+          if (shouldRefreshSeries) {
+            // Prevent duplicate future occurrences when a recurring series is edited multiple times.
+            const originalDate = new Date(oldEvent.date);
+            baseEvents = events.filter((e) => {
+              if (e.id === editEventId) return true;
+              const sameTitle = e.title === oldEvent.title;
+              const sameWorkoutDay = e.workoutDay === oldEvent.workoutDay;
+              const sameCalendar = e.calendar === oldEvent.calendar;
+              const dateIsFutureOrSame = new Date(e.date) >= originalDate;
+              return !(sameTitle && sameWorkoutDay && sameCalendar && dateIsFutureOrSame);
+            });
+          }
+
+          const updatedIndex = baseEvents.findIndex((e) => e.id === editEventId);
+          if (updatedIndex > -1) {
+            baseEvents[updatedIndex] = newEvent;
+          } else {
+            baseEvents.push(newEvent);
+          }
+          events = baseEvents;
 
           // If repeat setting changed from never to something else, or changed entirely,
           // we might want to generate future events. 

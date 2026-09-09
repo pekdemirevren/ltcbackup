@@ -1,0 +1,73 @@
+
+> kurtarltcNew@0.0.1 test
+> jest __tests__/calculateOVR.test.ts
+
+watchman warning:  Recrawled this watch 1 time, most recently because:
+MustScanSubDirs UserDroppedTo resolve, please review the information on
+https://facebook.github.io/watchman/docs/troubleshooting.html#recrawl
+To clear this warning, run:
+`watchman watch-del '/Users/evrenpekdemir/kurtarltc/ltcnew' ; watchman watch-project '/Users/evrenpekdemir/kurtarltc/ltcnew'`
+
+jest-haste-map: Haste module naming collision: @figma/my-make-file
+  The following files share their name; please adjust your hasteImpl:
+    * <rootDir>/Sharing Screen Design/package.json
+    * <rootDir>/Collectible Fitness Card Design/package.json
+
+PASS __tests__/calculateOVR.test.ts
+  calculateOVR - Authoritative Position-Weighted Implementation
+    Position Weights Verification
+      ✓ should apply different weights for PULL vs PUSH vs LEGS positions (1 ms)
+      ✓ PULL position should weight STR, VOL, END equally at 1.0 (2 ms)
+      ✓ PUSH position should weight STR, TMP, HYP equally at 1.0
+      ✓ LEGS position should weight STR, VOL, PHY equally at 1.0
+    Balanced Stats (all equal)
+      ✓ should produce same OVR across all positions when all stats are equal (1 ms)
+      ✓ should correctly normalize weights for balanced inputs
+    Position Differentiation (specialized stats)
+      ✓ Strength-focus: should show position variance
+      ✓ Endurance-focus: should show position variance
+      ✓ Tempo-focus: should show position variance
+      ✓ Hypertrophy-focus: should show position variance (1 ms)
+      ✓ Physical-focus: should show position variance
+      ✓ Volume-focus: should show position variance
+    Boundary Values
+      ✓ should handle all-zero stats
+      ✓ should handle all-1 stats
+      ✓ should handle 50% stats (1 ms)
+      ✓ should handle 98/99 stats
+    OVR Capping
+      ✓ should cap OVR at 99 even if calculated higher
+      ✓ should never exceed 99
+    Determinism
+      ✓ should produce same result for same input + position
+      ✓ should produce consistent results across multiple calls (1 ms)
+    Real Character Regression Tests
+      ✓ Chaos (PUSH): OVR should be consistent with formula
+      ✓ Gaia (LEGS): OVR should be consistent with formula
+      ✓ Zeus (PUSH): OVR should be consistent with formula
+      ✓ Poseidon (PULL): OVR should be consistent with formula
+      ✓ Hera (PUSH): OVR should be consistent with formula
+      ✓ Athena (PULL): OVR should be consistent with formula
+      ✓ Ares (PUSH): OVR should be consistent with formula
+      ✓ Apollo (PULL): OVR should be consistent with formula
+      ✓ Artemis (PULL): OVR should be consistent with formula
+      ✓ Hephaestus (PUSH): OVR should be consistent with formula
+      ✓ Hermes (LEGS): OVR should be consistent with formula
+      ✓ Demeter (LEGS): OVR should be consistent with formula
+      ✓ Aphrodite (PUSH): OVR should be consistent with formula
+      ✓ all real characters should have valid OVR (0-99) (1 ms)
+    Data Integrity
+      ✓ should not mutate input stats object
+      ✓ should not modify character rarity
+    SORTED_COLLECTIBLE_WORKOUTS
+      ✓ should be sorted by position then OVR (2 ms)
+      ✓ should contain valid character data (8 ms)
+    Default Position Behavior
+      ✓ should default to PULL position when position not specified
+      ✓ should produce consistent results when position defaults to PULL
+
+Test Suites: 1 passed, 1 total
+Tests:       40 passed, 40 total
+Snapshots:   0 total
+Time:        0.577 s
+Ran all test suites matching /__tests__\/calculateOVR.test.ts/i.

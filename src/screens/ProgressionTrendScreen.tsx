@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { BackButtonStyles } from '../styles/BackButtonStyle';
 import { calculate1RM, calculateStrengthRatio, DEFAULT_BODY_WEIGHT_KG, getRPELabel } from '../utils/StrengthCalculator';
+import { getTotalVolume, get1RM } from '../utils/SessionSnapshotReader';
 
 const COLORS = { background: '#000000', textWhite: '#FFFFFF', textGray: '#8E8E93', separator: '#2C2C2E' };
 const METRIC_COLOR = '#FF9F0A'; // Orange for Progression
@@ -55,12 +56,12 @@ export default function ProgressionTrendScreen({ navigation }: { navigation: any
                 const workoutDays = new Set<string>();
 
                 summaries.forEach((s: any) => {
-                    const weight = s.settings?.weight ? parseFloat(s.settings.weight) : 0;
+                    const volumeResult = getTotalVolume(s);
+                    totalVolume += volumeResult.value ?? 0;
                     const sets = s.completedSets || 0;
                     const reps = s.completedReps || 0;
-                    totalVolume += weight * sets * reps;
                     totalReps += reps;
-                    const oneRM = calculate1RM(weight, reps);
+                    const oneRM = get1RM(s).value ?? 0;
                     if (oneRM > maxOneRM) maxOneRM = oneRM;
                     workoutDays.add(new Date(s.date).toDateString());
                 });
@@ -102,16 +103,14 @@ export default function ProgressionTrendScreen({ navigation }: { navigation: any
                 const d = new Date(s.date);
                 return d >= sevenDaysAgo && d <= now;
             }).reduce((acc: number, s: any) => {
-                const w = s.settings?.weight ? parseFloat(s.settings.weight) : 0;
-                return acc + w * (s.completedSets || 0) * (s.completedReps || 0);
+                return acc + (getTotalVolume(s).value ?? 0);
             }, 0);
 
             const lastWeekVolume = allSummaries.filter((s: any) => {
                 const d = new Date(s.date);
                 return d >= fourteenDaysAgo && d < sevenDaysAgo;
             }).reduce((acc: number, s: any) => {
-                const w = s.settings?.weight ? parseFloat(s.settings.weight) : 0;
-                return acc + w * (s.completedSets || 0) * (s.completedReps || 0);
+                return acc + (getTotalVolume(s).value ?? 0);
             }, 0);
 
             setWeeklyComparison({
@@ -127,9 +126,8 @@ export default function ProgressionTrendScreen({ navigation }: { navigation: any
                 if (d.getFullYear() === now.getFullYear()) {
                     const monthKey = d.toLocaleString('en', { month: 'short' });
                     if (!monthlyData[monthKey]) monthlyData[monthKey] = { volume: 0, oneRM: 0 };
-                    const w = s.settings?.weight ? parseFloat(s.settings.weight) : 0;
-                    monthlyData[monthKey].volume += w * (s.completedSets || 0) * (s.completedReps || 0);
-                    const oneRM = calculate1RM(w, s.completedReps || 6);
+                    monthlyData[monthKey].volume += getTotalVolume(s).value ?? 0;
+                    const oneRM = get1RM(s).value ?? 0;
                     if (oneRM > monthlyData[monthKey].oneRM) monthlyData[monthKey].oneRM = Math.round(oneRM);
                 }
             });

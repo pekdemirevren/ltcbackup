@@ -244,6 +244,11 @@ export const calculateOVR = (stats: PrimaryStats, position: Position = 'PULL'): 
     return Math.min(99, Math.round(weightedSum / totalWeight));
 };
 
+// Helper: obtain the authoritative calculated OVR for a CollectibleWorkout
+export const getCalculatedOVRFromWorkout = (w: CollectibleWorkout): number => {
+    return calculateOVR(w.baseStats, w.position);
+};
+
 export const getRarityFromOVR = (ovr: number): Rarity => {
     if (ovr >= 95) return 'DIVINE';
     if (ovr >= 90) return 'GOD';

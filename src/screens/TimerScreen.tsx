@@ -24,6 +24,8 @@ import { StackScreenProps } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/RootNavigator';
 import { wallpapers } from '../constants/wallpapers';
 import { allWorkouts } from '../constants/workoutData';
+import { calculateCalories } from '../utils/CalorieCalculator';
+import { parseStoredBodyWeight, DEFAULT_BODY_WEIGHT_KG } from '../constants/bodyWeight';
 
 type TimerScreenNavigationProps = StackScreenProps<RootStackParamList, 'Timer'>;
 
@@ -131,6 +133,7 @@ export function TimerScreen({ route, navigation }: TimerScreenNavigationProps) {
     totalElapsedTime,
     setTotalElapsedTime,
     weight,
+    timerKey,
   } = timerContext;
 
   // Timer settings
@@ -250,6 +253,8 @@ export function TimerScreen({ route, navigation }: TimerScreenNavigationProps) {
   const redLoopTimesRef = useRef<number[]>([]);
   const currentLoopStartTimeRef = useRef(Date.now());
   const workoutFinishedRef = useRef(false);
+  // Prevent duplicate save/navigation for the same completed workout
+  const workoutSavedRef = useRef(false);
 
   // ✅ WORKOUT ID DEĞİŞTİĞİNDE RESET
   useEffect(() => {
@@ -283,7 +288,7 @@ export function TimerScreen({ route, navigation }: TimerScreenNavigationProps) {
     setIsGreenPhase(initialPhaseVal);
 
     console.log('✅ Timer reset complete');
-  }, [workoutId]);
+  }, [workoutId, timerKey]);
 
   // Workout progress
   const workoutProgress = useMemo(() => {
@@ -306,6 +311,9 @@ export function TimerScreen({ route, navigation }: TimerScreenNavigationProps) {
   // Save workout summary
   const saveWorkoutSummary = useCallback(
     async (finalSets: number, finalReps: number) => {
+      // Guard: if we've already saved this workout, skip duplicate saves
+      if (workoutSavedRef.current) return;
+      workoutSavedRef.current = true;
       // 0. Import MainCardAttemptManager dynamically to avoid overhead
       const { recordWorkoutInAttempt } = await import('../utils/MainCardAttemptManager');
       if (workoutFinishedRef.current && completedGreenRepsRef.current > finalSets) {
@@ -334,6 +342,20 @@ export function TimerScreen({ route, navigation }: TimerScreenNavigationProps) {
         const durationMins = finalElapsedTime / 60;
         const totalEstimatedKcal = Math.round(durationMins * 7);
 
+        // Phase 5A: Historical Calorie Snapshot
+        // Resolve authoritative body weight at save time
+        const storedBodyWeight = await AsyncStorage.getItem('userBodyWeight');
+        const bodyWeightKg = parseStoredBodyWeight(storedBodyWeight);
+
+        // Calculate real calories using resolved body weight
+        const calories = calculateCalories({
+          workoutId: workoutId || `quick-${Date.now()}`,
+          durationSeconds: finalElapsedTime,
+          bodyWeightKg,
+          liftedWeightKg: currentWeight,
+          reps: finalReps,
+        });
+
         const summary = {
           date: new Date().toISOString(),
           workoutId: workoutId || `quick-${Date.now()}`,
@@ -351,6 +373,9 @@ export function TimerScreen({ route, navigation }: TimerScreenNavigationProps) {
           greenLoopTimes: greenLoopTimesRef.current,
           redLoopTimes: redLoopTimesRef.current,
           infiniteLoopTime: cycleTrackingEnabled ? null : infiniteLoopTime,
+          // Phase 5A: Immutable historical snapshot
+          calories,
+          bodyWeightKg,
         };
 
         const existing = await AsyncStorage.getItem('workoutSummaries');
@@ -427,7 +452,11 @@ export function TimerScreen({ route, navigation }: TimerScreenNavigationProps) {
         if (workoutId) {
           await AsyncStorage.setItem(LAST_ACTIVITY_WORKOUT_ID_KEY, workoutId);
         }
+        // mark saved to prevent duplicates (again) in case of races
+        workoutSavedRef.current = true;
       } catch (e) {
+        // on error, allow retry by clearing saved flag
+        workoutSavedRef.current = false;
         console.error('❌ Kayıt hatası:', e);
       }
 

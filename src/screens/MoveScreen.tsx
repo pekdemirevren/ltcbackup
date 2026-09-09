@@ -8,6 +8,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import { BackButtonStyles } from '../styles/BackButtonStyle';
 import MetricColors from '../constants/MetricColors';
 import { calculateCalories } from '../utils/CalorieCalculator';
+import { getSessionCalories } from '../utils/SnapshotCalorieReader';
+import { parseStoredBodyWeight } from '../constants/bodyWeight';
 
 const COLORS = {
   background: '#000000',
@@ -39,7 +41,9 @@ export default function MoveScreen({ navigation }: { navigation: any }) {
       const stored = await AsyncStorage.getItem('workoutSummaries');
       const settingsStr = await AsyncStorage.getItem('userSettings');
       const settings = settingsStr ? JSON.parse(settingsStr) : {};
-      const userWeight = settings.weight ? parseFloat(settings.weight) : 70;
+      const bodyWeightKg = parseStoredBodyWeight(
+        (await AsyncStorage.getItem('userBodyWeight')) ?? settings.weight ?? settings.bodyWeight ?? 75
+      );
 
       if (!stored) return;
       const allSummaries = JSON.parse(stored);
@@ -47,12 +51,15 @@ export default function MoveScreen({ navigation }: { navigation: any }) {
 
       const getCalories = (s: any) => {
         if (s.activeCalories) return parseFloat(s.activeCalories);
-        return calculateCalories(
-          s.workoutType || 'Strength',
-          s.elapsedTime || 0,
-          s.intensity || 'Medium',
-          userWeight
-        );
+        // Phase 5B: Prefer snapshot calories, fallback to live calculation for legacy sessions
+        const weightVal = s.settings?.weight ? parseFloat(s.settings.weight) : 0;
+        return getSessionCalories(s.calories, {
+          workoutId: s.workoutType || 'Strength',
+          durationSeconds: s.elapsedTime || 0,
+          bodyWeightKg,
+          liftedWeightKg: weightVal,
+          reps: s.completedReps || 0,
+        });
       };
 
       // Monthly data for the year (12 months)
