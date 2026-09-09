@@ -1,6 +1,7 @@
 import { calculate1RM, calculateDSI, LiftData } from './StrengthCalculator';
 import { getSessionCalories } from './SnapshotCalorieReader';
 import { parseStoredBodyWeight } from '../constants/bodyWeight';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 /**
  * SessionSnapshotReader
@@ -126,3 +127,84 @@ export function getRestTime(session: any): ReaderResult<number> {
   }
   return { value: null, source: 'insufficient' };
 }
+
+/**
+ * Phase 46: Get the most recent completed session for a given workoutId
+ * 
+ * Reads from workoutSummaries AsyncStorage key.
+ * Returns the most recently completed session matching the workoutId.
+ * Enforces Historical Truth: reads from immutable snapshot only.
+ * 
+ * @param workoutId - The workout ID to find
+ * @returns The most recent session object, or null if none found
+ */
+export async function getLastSessionForWorkout(workoutId: string): Promise<any | null> {
+  try {
+    const storedSummaries = await AsyncStorage.getItem('workoutSummaries');
+    if (!storedSummaries) {
+      return null;
+    }
+
+    const summaries = JSON.parse(storedSummaries);
+    if (!Array.isArray(summaries) || summaries.length === 0) {
+      return null;
+    }
+
+    // Filter by workoutId and find the most recent (last in array = latest)
+    const matchingSessions = summaries.filter((s: any) => s.workoutId === workoutId);
+    if (matchingSessions.length === 0) {
+      return null;
+    }
+
+    // Return the last (most recent) session
+    return matchingSessions[matchingSessions.length - 1];
+  } catch (error) {
+    console.error('❌ Error reading last session for workout', workoutId, ':', error);
+    return null;
+  }
+}
+
+/**
+ * Phase 46: Extract suggested weight from the last completed session
+ * 
+ * Simple MVP: use the weight field from the last session's settings.
+ * If not found, returns null (no suggestion).
+ * 
+ * @param workoutId - The workout ID
+ * @returns The weight string (e.g., "75") or null
+ */
+export async function getLastSessionSuggestedWeight(workoutId: string): Promise<string | null> {
+  const lastSession = await getLastSessionForWorkout(workoutId);
+  if (!lastSession) {
+    return null;
+  }
+
+  // Extract weight from settings
+  const weight = lastSession.settings?.weight;
+  if (typeof weight === 'string' && weight.length > 0) {
+    return weight;
+  }
+
+  return null;
+}
+
+/**
+ * Phase 46: Extract suggested sets and reps from the last completed session
+ * 
+ * Returns completedSets and completedReps from the last session.
+ * 
+ * @param workoutId - The workout ID
+ * @returns Object with { sets, reps } or null if not found
+ */
+export async function getLastSessionSuggestedMetrics(workoutId: string): Promise<{ sets: number | null; reps: number | null } | null> {
+  const lastSession = await getLastSessionForWorkout(workoutId);
+  if (!lastSession) {
+    return null;
+  }
+
+  return {
+    sets: typeof lastSession.completedSets === 'number' ? lastSession.completedSets : null,
+    reps: typeof lastSession.completedReps === 'number' ? lastSession.completedReps : null,
+  };
+}
+
