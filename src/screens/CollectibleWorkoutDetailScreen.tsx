@@ -36,6 +36,7 @@ import { getMythologyCategoryConfig } from '../constants/mythologyCategories';
 import { ProgressRing, getLevelProgressInTier } from '../components/ProgressRing';
 import { calculateExerciseMetrics } from '../utils/WorkoutCalculator';
 import { addWorkoutXP, getWorkoutLevel, getWorkoutXP, getXPForLevel } from '../utils/LevelSystem';
+import { loadWorkoutSettings, resolveWorkoutStartSettings } from '../utils/WorkoutSettingsManager';
 import * as Icons from '../assets/icons';
 import WarriorIcon from '../assets/icons/skills/warrior';
 import WarmupProIcon from '../assets/icons/warmuppro';
@@ -284,17 +285,15 @@ const CollectibleWorkoutDetailScreen: React.FC<Props> = ({ route, navigation }) 
             const firstExercise = visibleExercises[0];
             const parsed = parseWorkoutName(firstExercise.name);
             const combinedId = `${workout.id}_${firstExercise.id}`;
+            const savedSettings = await loadWorkoutSettings(combinedId);
+            const resolvedSettings = resolveWorkoutStartSettings(parsed, savedSettings);
+
             timerContext.startTimerWithWorkoutSettings(
                 combinedId,
                 parsed.name,
                 workout.id,
                 workout.baseLevel,
-
-                parsed.sets ? {
-                    targetSets: parsed.sets,
-                    targetReps: parsed.reps,
-                    weight: parsed.weight
-                } : undefined
+                resolvedSettings,
             );
         }
     };

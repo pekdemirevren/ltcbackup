@@ -25,9 +25,32 @@ export interface WorkoutSettings {
     weight?: string;
 }
 
+export interface ParsedWorkoutSettings {
+    name: string;
+    sets?: number | string;
+    reps?: string | number;
+    weight?: string;
+}
+
 const SETTINGS_STORAGE_PREFIX = '@workout_settings_';
 export const LAST_SETTINGS_KEY = '@workout_settings_last';
 export const LAST_ACTIVITY_WORKOUT_ID_KEY = '@last_activity_workout_id';
+
+/**
+ * Resolve the workout start settings, giving priority to saved settings
+ * over parsed settings from the workout name.
+ */
+export function resolveWorkoutStartSettings(
+    parsed: ParsedWorkoutSettings,
+    saved?: Partial<WorkoutSettings>,
+    explicit?: Partial<{ targetSets?: string; targetReps?: string; weight?: string }>,
+): { targetSets?: string; targetReps?: string; weight?: string } {
+    return {
+        targetSets: explicit?.targetSets ?? saved?.targetSets ?? (parsed.sets !== undefined ? String(parsed.sets) : undefined),
+        targetReps: explicit?.targetReps ?? saved?.targetReps ?? (parsed.reps !== undefined ? String(parsed.reps) : undefined),
+        weight: explicit?.weight ?? saved?.weight ?? parsed.weight ?? '75',
+    };
+}
 
 /**
  * Default settings that apply to all workouts initially
