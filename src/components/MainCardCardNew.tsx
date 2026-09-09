@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { MainCard, MainCardState } from '../types/mainCard';
 import { getMainCardState } from '../utils/MainCardEngine';
 import { FUTShield } from './FUTShield';
@@ -42,14 +42,23 @@ export const MainCardCardNew: React.FC<MainCardCardNewProps> = ({
     const navigation = useNavigation<any>();
     const [state, setState] = useState<MainCardState | null>(null);
 
-    useEffect(() => {
-        loadState();
-    }, [card.id]);
+    useFocusEffect(
+        React.useCallback(() => {
+            let isActive = true;
 
-    const loadState = async () => {
-        const s = await getMainCardState(card.id);
-        setState(s);
-    };
+            const loadState = async () => {
+                const s = await getMainCardState(card.id);
+                if (isActive) {
+                    setState(s);
+                }
+            };
+
+            void loadState();
+            return () => {
+                isActive = false;
+            };
+        }, [card.id])
+    );
 
     const rarityConfig = (collectibleRarityColors as any)[card.rarity] || collectibleRarityColors.GOLD;
     // @ts-ignore

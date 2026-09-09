@@ -1,6 +1,7 @@
 import React, { useContext, useState, useEffect } from 'react';
 import { View, Text, FlatList, StyleSheet, Animated, Platform, InteractionManager } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
+import { useFocusEffect } from '@react-navigation/native';
 import { WorkoutScreenStyles as styles } from '../styles/WorkoutScreenStyles';
 import { ThemeContext } from '../contexts/ThemeContext';
 import Theme from '../constants/theme';
@@ -39,47 +40,52 @@ export function WorkoutScreen({ navigation }: WorkoutScreenProps) {
     { id: 'MORTAL', label: 'MORTALS' },
   ];
 
-  useEffect(() => {
-    const loadLevelsAndSort = async () => {
-      const [levelsMap, xpMap] = await Promise.all([
-        getAllWorkoutLevels(),
-        getAllWorkoutXP()
-      ]);
+  const loadLevelsAndSort = async () => {
+    const [levelsMap, xpMap] = await Promise.all([
+      getAllWorkoutLevels(),
+      getAllWorkoutXP()
+    ]);
 
-      setLevels(levelsMap);
-      setXps(xpMap);
+    setLevels(levelsMap);
+    setXps(xpMap);
 
-      const sorted = [...SORTED_COLLECTIBLE_WORKOUTS].sort((a, b) => {
-        const levelA = levelsMap[a.id] ?? a.baseLevel;
-        const levelB = levelsMap[b.id] ?? b.baseLevel;
+    const sorted = [...SORTED_COLLECTIBLE_WORKOUTS].sort((a, b) => {
+      const levelA = levelsMap[a.id] ?? a.baseLevel;
+      const levelB = levelsMap[b.id] ?? b.baseLevel;
 
-        if (levelA !== levelB) {
-          return levelA - levelB;
-        }
-
-        const ovrA = calculateOVR(a.baseStats, a.position);
-        const ovrB = calculateOVR(b.baseStats, b.position);
-        return ovrA - ovrB;
-      });
-
-      setAllWorkouts(sorted);
-
-      // If no search query, update filtered workouts too
-      if (searchQuery.trim() === '') {
-        setFilteredWorkouts(sorted);
-      } else {
-        const query = searchQuery.toLowerCase();
-        const filtered = sorted.filter(workout =>
-          workout.name.toLowerCase().includes(query) ||
-          workout.subtitle?.toLowerCase().includes(query) ||
-          workout.secondaryTraits?.some((trait: any) => trait.title.toLowerCase().includes(query))
-        );
-        setFilteredWorkouts(filtered);
+      if (levelA !== levelB) {
+        return levelA - levelB;
       }
-    };
 
-    loadLevelsAndSort();
+      const ovrA = calculateOVR(a.baseStats, a.position);
+      const ovrB = calculateOVR(b.baseStats, b.position);
+      return ovrA - ovrB;
+    });
+
+    setAllWorkouts(sorted);
+
+    if (searchQuery.trim() === '') {
+      setFilteredWorkouts(sorted);
+    } else {
+      const query = searchQuery.toLowerCase();
+      const filtered = sorted.filter(workout =>
+        workout.name.toLowerCase().includes(query) ||
+        workout.subtitle?.toLowerCase().includes(query) ||
+        workout.secondaryTraits?.some((trait: any) => trait.title.toLowerCase().includes(query))
+      );
+      setFilteredWorkouts(filtered);
+    }
+  };
+
+  useEffect(() => {
+    void loadLevelsAndSort();
   }, []); // Only run on mount to avoid loops, maybe add listener for updates if needed
+
+  useFocusEffect(
+    React.useCallback(() => {
+      void loadLevelsAndSort();
+    }, [searchQuery, selectedCategory])
+  );
 
   useEffect(() => {
     let filtered = allWorkouts;

@@ -6,6 +6,7 @@ import Feather from 'react-native-vector-icons/Feather';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StackScreenProps } from '@react-navigation/stack';
+import { useFocusEffect } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/RootNavigator';
 import { findExerciseIcon } from '../constants/workoutData';
 import { TimerContext } from '../contexts/TimerContext';
@@ -174,6 +175,73 @@ const CollectibleWorkoutDetailScreen: React.FC<Props> = ({ route, navigation }) 
     const [workoutSettings, setWorkoutSettings] = useState<Record<string, any>>({});
 
     const scrollY = useRef(new Animated.Value(0)).current;
+
+    useFocusEffect(
+        React.useCallback(() => {
+            let isMounted = true;
+            const loadLevelData = async () => {
+                if (!workout) return;
+                const level = await getWorkoutLevel(workout.id, workout.baseLevel);
+                const xp = await getWorkoutXP(workout.id);
+                if (isMounted) {
+                    setCurrentLevel(level);
+                    setCurrentXP(xp);
+                }
+            };
+
+            const loadExerciseStats = async () => {
+                if (!workout) return;
+                try {
+                    const settingsMap: Record<string, any> = {};
+
+                    for (const exercise of workout.exercises) {
+                        const combinedId = `${workout.id}_${exercise.id}`;
+                        const settings = await loadWorkoutSettings(combinedId);
+                        settingsMap[exercise.id] = settings;
+                    }
+
+                    if (isMounted) {
+                        setWorkoutSettings(settingsMap);
+                    }
+                } catch (e) {
+                    console.error('Failed to load settings:', e);
+                }
+            };
+
+            const loadCompletionStatus = async () => {
+                try {
+                    const summariesStr = await AsyncStorage.getItem('workoutSummaries');
+                    const summaries = summariesStr ? JSON.parse(summariesStr) : [];
+                    const today = new Date().toISOString().split('T')[0];
+                    const todaySummaries = summaries.filter((s: any) => s.date.startsWith(today));
+
+                    const completedIds = new Set<string>();
+                    todaySummaries.forEach((s: any) => {
+                        const wId = String(s.workoutId);
+                        completedIds.add(wId);
+                        // Also add the base ID if it's a combined ID
+                        if (wId.includes('_')) {
+                            const parts = wId.split('_');
+                            completedIds.add(parts[parts.length - 1]);
+                        }
+                    });
+
+                    if (isMounted) {
+                        setCompletedExercises(completedIds);
+                    }
+                } catch (e) {
+                    console.error('Failed to load exercise completion status:', e);
+                }
+            };
+
+            void loadLevelData();
+            void loadExerciseStats();
+            void loadCompletionStatus();
+            return () => {
+                isMounted = false;
+            };
+        }, [workoutId, workout?.id])
+    );
 
     useEffect(() => {
         let isMounted = true;
